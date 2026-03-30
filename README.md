@@ -1,6 +1,6 @@
-# Traccar Mock Server
+# Traccar Web Demo
 
-A fully functional mock backend for Traccar Web that simulates all API endpoints and WebSocket real-time updates. This allows you to develop and demo the frontend without running the Java backend.
+An (almost) fully functional mock backend for Traccar Web that simulates all API endpoints and WebSocket real-time updates. This allows you to develop and demo the frontend without running the Java backend.
 
 ## Features
 
