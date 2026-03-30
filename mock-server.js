@@ -353,17 +353,20 @@ app.get('/api/positions', authMiddleware, (req, res) => {
 
 // KML Export - MUST come before /api/positions/:id
 app.get('/api/positions/kml', (req, res) => {
-  // Allow both authenticated and unauthenticated requests for easier testing
-  const sessionToken = req.cookies.session;
-  const user = db.session.get(sessionToken);
+  console.log('>>> KML endpoint hit! URL:', req.originalUrl, 'Query:', req.query);
+  
+  const { deviceId, from, to } = req.query;
+  
+  // Check session
+  const sessionToken = req.cookies?.session;
+  const user = sessionToken ? db.session.get(sessionToken) : null;
   
   if (!user) {
     console.log('KML export: No valid session, returning 401');
-    return res.status(401).json({ error: 'Unauthorized' });
+    return res.status(401).json({ error: 'Unauthorized', session: sessionToken ? 'invalid' : 'missing' });
   }
   
-  const { deviceId, from, to } = req.query;
-  console.log(`KML export: deviceId=${deviceId}, from=${from}, to=${to}`);
+  console.log(`KML export: deviceId=${deviceId}, from=${from}, to=${to}, user=${user.email}`);
   
   if (!deviceId) {
     return res.status(400).json({ error: 'deviceId is required' });
@@ -383,7 +386,7 @@ app.get('/api/positions/kml', (req, res) => {
   
   res.set('Content-Type', 'application/vnd.google-earth.kml+xml');
   res.set('Content-Disposition', `attachment; filename="${deviceName}_track.kml"`);
-  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+  return res.send(`<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
   <Document>
     <name>${deviceName} Track</name>
