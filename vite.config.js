@@ -4,6 +4,16 @@ import svgr from 'vite-plugin-svgr';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
 
+const replacePlaceholders = () => ({
+  name: 'replace-placeholders',
+  transformIndexHtml(html) {
+    return html
+      .replace(/\$\{title\}/g, 'Traccar')
+      .replace(/\$\{description\}/g, 'Traccar GPS Tracking System')
+      .replace(/\$\{colorPrimary\}/g, '#1a237e');
+  },
+});
+
 export default defineConfig(() => ({
   server: {
     port: 3000,
@@ -16,6 +26,7 @@ export default defineConfig(() => ({
     outDir: 'build',
   },
   plugins: [
+    replacePlaceholders(),
     svgr(),
     react(),
     VitePWA({

@@ -1,9 +1,14 @@
 import { useSelector } from 'react-redux';
 
-const containsProperty = (object, key) => object.hasOwnProperty(key) && object[key] !== null;
+const containsProperty = (object, key) => {
+  if (!object || typeof object !== 'object') return false;
+  return Object.prototype.hasOwnProperty.call(object, key) && object[key] !== null;
+};
 
 export const usePreference = (key, defaultValue) =>
   useSelector((state) => {
+    if (!state.session.user || !state.session.server) return defaultValue;
+    
     if (state.session.server.forceSettings) {
       if (containsProperty(state.session.server, key)) {
         return state.session.server[key];
@@ -24,20 +29,23 @@ export const usePreference = (key, defaultValue) =>
 
 export const useAttributePreference = (key, defaultValue) =>
   useSelector((state) => {
-    if (state.session.server.forceSettings) {
-      if (containsProperty(state.session.server.attributes, key)) {
-        return state.session.server.attributes[key];
+    const userAttrs = state.session.user?.attributes || {};
+    const serverAttrs = state.session.server?.attributes || {};
+    
+    if (state.session.server?.forceSettings) {
+      if (containsProperty(serverAttrs, key)) {
+        return serverAttrs[key];
       }
-      if (containsProperty(state.session.user.attributes, key)) {
-        return state.session.user.attributes[key];
+      if (containsProperty(userAttrs, key)) {
+        return userAttrs[key];
       }
       return defaultValue;
     }
-    if (containsProperty(state.session.user.attributes, key)) {
-      return state.session.user.attributes[key];
+    if (containsProperty(userAttrs, key)) {
+      return userAttrs[key];
     }
-    if (containsProperty(state.session.server.attributes, key)) {
-      return state.session.server.attributes[key];
+    if (containsProperty(serverAttrs, key)) {
+      return serverAttrs[key];
     }
     return defaultValue;
   });
