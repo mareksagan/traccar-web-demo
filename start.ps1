@@ -1,6 +1,6 @@
 #!/usr/bin/env pwsh
 
-Write-Host "🚀 Starting Traccar Demo Environment..." -ForegroundColor Green
+Write-Host "Starting Traccar Demo Environment..." -ForegroundColor Green
 Write-Host ""
 
 # Start mock server as a job
@@ -10,7 +10,7 @@ $mockJob = Start-Job -ScriptBlock {
 }
 
 # Wait for server to be ready
-Write-Host "⏳ Waiting for mock server to start..." -ForegroundColor Yellow
+Write-Host "Waiting for mock server to start..." -ForegroundColor Yellow
 $retries = 0
 $maxRetries = 30
 $started = $false
@@ -26,17 +26,17 @@ while ($retries -lt $maxRetries -and -not $started) {
 }
 
 if (-not $started) {
-    Write-Host "❌ Failed to start mock server" -ForegroundColor Red
+    Write-Host "Failed to start mock server" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "✅ Mock server running on http://localhost:8082" -ForegroundColor Green
+Write-Host "Mock server running on http://localhost:8082" -ForegroundColor Green
 Write-Host ""
-Write-Host "📋 Demo Credentials:" -ForegroundColor Cyan
+Write-Host "   Demo Credentials:" -ForegroundColor Cyan
 Write-Host "   Email: admin@example.com"
 Write-Host "   Password: admin"
 Write-Host ""
-Write-Host "🌐 Starting frontend..." -ForegroundColor Yellow
+Write-Host "   Starting frontend..." -ForegroundColor Yellow
 Write-Host ""
 
 # Start frontend

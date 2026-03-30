@@ -53,9 +53,9 @@ const db = {
     { id: 3, name: 'Fleet Vehicles', groupId: null, attributes: {} },
   ],
   geofences: [
-    { id: 1, name: 'Headquarters', description: 'Main office area', area: 'CIRCLE(47.0105 28.8638 500)', attributes: { color: '#FF0000' } },
-    { id: 2, name: 'Warehouse Zone', description: 'Storage facility', area: 'POLYGON((47.0160 28.8560, 47.0160 28.8710, 47.0060 28.8710, 47.0060 28.8560, 47.0160 28.8560))', attributes: { color: '#00FF00' } },
-    { id: 3, name: 'Restricted Area', description: 'No entry zone', area: 'CIRCLE(47.0010 28.8500 300)', attributes: { color: '#FF0000' } },
+    { id: 1, name: 'Headquarters', description: 'Main office area', area: 'CIRCLE(47.0105 28.8638 500)', attributes: { color: '#FF0000', hide: false } },
+    { id: 2, name: 'Warehouse Zone', description: 'Storage facility', area: 'POLYGON((47.0160 28.8560, 47.0160 28.8710, 47.0060 28.8710, 47.0060 28.8560, 47.0160 28.8560))', attributes: { color: '#00FF00', hide: false } },
+    { id: 3, name: 'Restricted Area', description: 'No entry zone', area: 'CIRCLE(47.0010 28.8500 300)', attributes: { color: '#FF0000', hide: false } },
   ],
   drivers: [
     { id: 1, name: 'John Doe', uniqueId: 'DRV001', attributes: {} },
@@ -70,8 +70,8 @@ const db = {
     { id: 1, name: 'Work Schedule', data: 'QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KQkVHSU46VkVWRU5UDQpVSUQ6dGVzdEB0cmFjY2FyLm9yZw0KRFRTVEFSVDoyMDI0MDEwMVQwMDAwMA0KRFRFTkQ6MjAyNDAxMDFUMDEwMDANClJTVUxFOkZSRUc9REFJTFkNClNVTU1BUlk6V29yayBTY2hlZHVsZQ0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg==', attributes: {} },
   ],
   notifications: [
-    { id: 1, type: 'geofenceEnter', always: false, calendarId: null, attributes: {}, notificators: 'web' },
-    { id: 2, type: 'deviceOverspeed', always: true, calendarId: null, attributes: { speed: 80 }, notificators: 'web,mail' },
+    { id: 1, description: 'Geofence Alert', type: 'geofenceEnter', always: false, calendarId: null, attributes: { alarms: 'sos' }, notificators: 'web' },
+    { id: 2, description: 'Overspeed Alert', type: 'deviceOverspeed', always: true, calendarId: null, attributes: { alarms: 'overspeed', speed: 80 }, notificators: 'web,mail' },
   ],
   commands: [
     { id: 1, deviceId: 1, type: 'custom', description: 'Engine Stop', attributes: { data: 'stop' } },
@@ -250,6 +250,11 @@ app.get('/api/server/geocode', authMiddleware, (req, res) => {
   res.send(`${latitude}, ${longitude} - bd. Stefan cel Mare, Chisinau, Moldova`);
 });
 
+// Update server settings
+app.put('/api/server', authMiddleware, (req, res) => {
+  res.json({ ...req.body, id: 1 });
+});
+
 // ============ DEVICE ENDPOINTS ============
 
 app.get('/api/devices', authMiddleware, (req, res) => {
@@ -346,6 +351,53 @@ app.get('/api/positions', authMiddleware, (req, res) => {
   res.json(positions);
 });
 
+// KML Export - MUST come before /api/positions/:id
+app.get('/api/positions/kml', (req, res) => {
+  // Allow both authenticated and unauthenticated requests for easier testing
+  const sessionToken = req.cookies.session;
+  const user = db.session.get(sessionToken);
+  
+  if (!user) {
+    console.log('KML export: No valid session, returning 401');
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  const { deviceId, from, to } = req.query;
+  console.log(`KML export: deviceId=${deviceId}, from=${from}, to=${to}`);
+  
+  if (!deviceId) {
+    return res.status(400).json({ error: 'deviceId is required' });
+  }
+  
+  const device = db.devices.find(d => d.id === parseInt(deviceId));
+  const deviceName = device ? device.name : `Device_${deviceId}`;
+  
+  // Generate some realistic coordinates based on device
+  const positions = [];
+  const count = 20;
+  const baseLat = 47.0105;
+  const baseLon = 28.8638;
+  for (let i = 0; i < count; i++) {
+    positions.push(`${baseLon + i * 0.001},${baseLat + Math.sin(i * 0.1) * 0.005},0`);
+  }
+  
+  res.set('Content-Type', 'application/vnd.google-earth.kml+xml');
+  res.set('Content-Disposition', `attachment; filename="${deviceName}_track.kml"`);
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>${deviceName} Track</name>
+    <Placemark>
+      <name>${deviceName} Route</name>
+      <LineString>
+        <coordinates>${positions.join(' ')}</coordinates>
+      </LineString>
+    </Placemark>
+  </Document>
+</kml>`);
+});
+
+// Get single position - MUST come after specific routes like /kml
 app.get('/api/positions/:id', authMiddleware, (req, res) => {
   const id = parseInt(req.params.id);
   const allPositions = Object.values(db.positions).flat();
@@ -355,24 +407,6 @@ app.get('/api/positions/:id', authMiddleware, (req, res) => {
   } else {
     res.status(404).send();
   }
-});
-
-// KML Export
-app.get('/api/positions/kml', authMiddleware, (req, res) => {
-  const { deviceId, from, to } = req.query;
-  res.set('Content-Type', 'application/vnd.google-earth.kml+xml');
-  res.send(`<?xml version="1.0" encoding="UTF-8"?>
-<kml xmlns="http://www.opengis.net/kml/2.2">
-  <Document>
-    <name>Device Track</name>
-    <Placemark>
-      <name>Track</name>
-      <LineString>
-        <coordinates>28.8638,47.0105,0 28.8650,47.0110,0</coordinates>
-      </LineString>
-    </Placemark>
-  </Document>
-</kml>`);
 });
 
 // ============ GROUP ENDPOINTS ============
@@ -421,7 +455,7 @@ app.get('/api/geofences', authMiddleware, (req, res) => {
 });
 
 app.post('/api/geofences', authMiddleware, (req, res) => {
-  const geofence = { ...req.body, id: generateId() };
+  const geofence = { ...req.body, id: generateId(), attributes: req.body.attributes || {} };
   db.geofences.push(geofence);
   res.json(geofence);
 });
@@ -430,7 +464,9 @@ app.get('/api/geofences/:id', authMiddleware, (req, res) => {
   const id = parseInt(req.params.id);
   const geofence = db.geofences.find(g => g.id === id);
   if (geofence) {
-    res.json(geofence);
+    // Ensure attributes always exists
+    const result = { ...geofence, attributes: geofence.attributes || {} };
+    res.json(result);
   } else {
     res.status(404).send();
   }
@@ -441,6 +477,10 @@ app.put('/api/geofences/:id', authMiddleware, (req, res) => {
   const index = db.geofences.findIndex(g => g.id === id);
   if (index >= 0) {
     db.geofences[index] = { ...db.geofences[index], ...req.body, id };
+    // Ensure attributes always exists
+    if (!db.geofences[index].attributes) {
+      db.geofences[index].attributes = {};
+    }
     res.json(db.geofences[index]);
   } else {
     res.status(404).send();
@@ -710,6 +750,48 @@ app.delete('/api/users/:id', authMiddleware, (req, res) => {
 
 // ============ COMMAND ENDPOINTS ============
 
+// Specific routes MUST come before parameterized routes
+app.get('/api/commands/types', authMiddleware, (req, res) => {
+  res.json([
+    { type: 'custom', name: 'Custom' },
+    { type: 'positionPeriodic', name: 'Position Periodic' },
+    { type: 'positionStop', name: 'Position Stop' },
+    { type: 'engineStop', name: 'Engine Stop' },
+    { type: 'engineResume', name: 'Engine Resume' },
+    { type: 'alarmArm', name: 'Alarm Arm' },
+    { type: 'alarmDisarm', name: 'Alarm Disarm' },
+    { type: 'setTimezone', name: 'Set Timezone' },
+    { type: 'requestPhoto', name: 'Request Photo' },
+    { type: 'rebootDevice', name: 'Reboot Device' },
+    { type: 'sendSms', name: 'Send SMS' },
+    { type: 'sendUssd', name: 'Send USSD' },
+    { type: 'sosNumber', name: 'SOS Number' },
+    { type: 'silenceSos', name: 'Silence SOS' },
+    { type: 'setIndicator', name: 'Set Indicator' },
+    { type: 'configuration', name: 'Configuration' },
+    { type: 'getVersion', name: 'Get Version' },
+    { type: 'firmwareUpdate', name: 'Firmware Update' },
+    { type: 'setConnection', name: 'Set Connection' },
+    { type: 'setOdometer', name: 'Set Odometer' },
+  ]);
+});
+
+app.post('/api/commands/send', authMiddleware, (req, res) => {
+  // Simulate sending command to device
+  console.log('Command sent:', req.body);
+  res.status(204).send();
+});
+
+app.get('/api/commands/send', authMiddleware, (req, res) => {
+  const { deviceId } = req.query;
+  // Return available commands for the device
+  res.json([
+    { type: 'engineStop', name: 'Engine Stop', deviceId: parseInt(deviceId) },
+    { type: 'engineResume', name: 'Engine Resume', deviceId: parseInt(deviceId) },
+    { type: 'rebootDevice', name: 'Reboot Device', deviceId: parseInt(deviceId) },
+  ]);
+});
+
 app.get('/api/commands', authMiddleware, (req, res) => {
   const { deviceId } = req.query;
   if (deviceId) {
@@ -732,22 +814,6 @@ app.get('/api/commands/:id', authMiddleware, (req, res) => {
   } else {
     res.status(404).send();
   }
-});
-
-app.post('/api/commands/send', authMiddleware, (req, res) => {
-  // Simulate sending command to device
-  console.log('Command sent:', req.body);
-  res.status(204).send();
-});
-
-app.get('/api/commands/send', authMiddleware, (req, res) => {
-  const { deviceId } = req.query;
-  // Return available commands for the device
-  res.json([
-    { type: 'engineStop', name: 'Engine Stop', deviceId: parseInt(deviceId) },
-    { type: 'engineResume', name: 'Engine Resume', deviceId: parseInt(deviceId) },
-    { type: 'rebootDevice', name: 'Reboot Device', deviceId: parseInt(deviceId) },
-  ]);
 });
 
 // ============ COMPUTED ATTRIBUTES ENDPOINTS ============
@@ -840,8 +906,20 @@ app.get('/api/reports/route', authMiddleware, (req, res) => {
 });
 
 app.get('/api/reports/trips', authMiddleware, (req, res) => {
+  const { deviceId, groupId } = req.query;
+  
+  // WORKAROUND: If no device/group selected, use first device to prevent frontend crash
+  let targetDeviceId = deviceId ? parseInt(deviceId) : null;
+  if (!targetDeviceId && groupId) {
+    const groupDevices = db.devices.filter(d => d.groupId === parseInt(groupId));
+    targetDeviceId = groupDevices[0]?.id;
+  }
+  if (!targetDeviceId) {
+    targetDeviceId = db.devices[0]?.id || 1;
+  }
+  
   const trips = [{
-    deviceId: 1,
+    deviceId: targetDeviceId,
     startTime: new Date(Date.now() - 3600000).toISOString(),
     endTime: new Date().toISOString(),
     duration: 3600000,
@@ -1150,9 +1228,20 @@ app.get('/api/reports/chart', authMiddleware, (req, res) => {
 // ============ GEOFENCE REPORT ============
 
 app.get('/api/reports/geofences', authMiddleware, (req, res) => {
-  const { deviceId, from, to } = req.query;
+  const { deviceId, groupId } = req.query;
+  
+  // WORKAROUND: If no device/group selected, use first device to prevent frontend crash
+  let targetDeviceId = deviceId ? parseInt(deviceId) : null;
+  if (!targetDeviceId && groupId) {
+    const groupDevices = db.devices.filter(d => d.groupId === parseInt(groupId));
+    targetDeviceId = groupDevices[0]?.id;
+  }
+  if (!targetDeviceId) {
+    targetDeviceId = db.devices[0]?.id || 1;
+  }
+  
   res.json([{
-    deviceId: parseInt(deviceId),
+    deviceId: targetDeviceId,
     geofenceId: 1,
     enterTime: new Date(Date.now() - 3600000).toISOString(),
     exitTime: new Date(Date.now() - 1800000).toISOString(),
@@ -1258,33 +1347,6 @@ app.post('/api/password/update', (req, res) => {
 
 app.post('/api/users/totp', (req, res) => {
   res.json({ qrUrl: 'otpauth://totp/Traccar:admin?secret=JBSWY3DPEHPK3PXP&issuer=Traccar' });
-});
-
-// ============ COMMAND TYPES ============
-
-app.get('/api/commands/types', authMiddleware, (req, res) => {
-  res.json([
-    { type: 'custom', name: 'Custom' },
-    { type: 'positionPeriodic', name: 'Position Periodic' },
-    { type: 'positionStop', name: 'Position Stop' },
-    { type: 'engineStop', name: 'Engine Stop' },
-    { type: 'engineResume', name: 'Engine Resume' },
-    { type: 'alarmArm', name: 'Alarm Arm' },
-    { type: 'alarmDisarm', name: 'Alarm Disarm' },
-    { type: 'setTimezone', name: 'Set Timezone' },
-    { type: 'requestPhoto', name: 'Request Photo' },
-    { type: 'rebootDevice', name: 'Reboot Device' },
-    { type: 'sendSms', name: 'Send SMS' },
-    { type: 'sendUssd', name: 'Send USSD' },
-    { type: 'sosNumber', name: 'SOS Number' },
-    { type: 'silenceSos', name: 'Silence SOS' },
-    { type: 'setIndicator', name: 'Set Indicator' },
-    { type: 'configuration', name: 'Configuration' },
-    { type: 'getVersion', name: 'Get Version' },
-    { type: 'firmwareUpdate', name: 'Firmware Update' },
-    { type: 'setConnection', name: 'Set Connection' },
-    { type: 'setOdometer', name: 'Set Odometer' },
-  ]);
 });
 
 // ============ PERMISSIONS BULK ============
