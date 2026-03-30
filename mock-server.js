@@ -53,9 +53,9 @@ const db = {
     { id: 3, name: 'Fleet Vehicles', groupId: null, attributes: {} },
   ],
   geofences: [
-    { id: 1, name: 'Headquarters', description: 'Main office area', area: 'CIRCLE(52.2297 21.0122 500)', attributes: { color: '#FF0000' } },
-    { id: 2, name: 'Warehouse Zone', description: 'Storage facility', area: 'POLYGON((52.2350 21.0050, 52.2350 21.0200, 52.2250 21.0200, 52.2250 21.0050, 52.2350 21.0050))', attributes: { color: '#00FF00' } },
-    { id: 3, name: 'Restricted Area', description: 'No entry zone', area: 'CIRCLE(52.2200 21.0000 300)', attributes: { color: '#FF0000' } },
+    { id: 1, name: 'Headquarters', description: 'Main office area', area: 'CIRCLE(47.0105 28.8638 500)', attributes: { color: '#FF0000' } },
+    { id: 2, name: 'Warehouse Zone', description: 'Storage facility', area: 'POLYGON((47.0160 28.8560, 47.0160 28.8710, 47.0060 28.8710, 47.0060 28.8560, 47.0160 28.8560))', attributes: { color: '#00FF00' } },
+    { id: 3, name: 'Restricted Area', description: 'No entry zone', area: 'CIRCLE(47.0010 28.8500 300)', attributes: { color: '#FF0000' } },
   ],
   drivers: [
     { id: 1, name: 'John Doe', uniqueId: 'DRV001', attributes: {} },
@@ -67,7 +67,7 @@ const db = {
     { id: 2, name: 'Tire Rotation Ford', type: 'maintenance', start: 8000, period: 8000, attributes: {} },
   ],
   calendars: [
-    { id: 1, name: 'Work Schedule', data: 'BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR', attributes: {} },
+    { id: 1, name: 'Work Schedule', data: 'QkVHSU46VkNBTEVOREFSDQpWRVJTSU9OOjIuMA0KQkVHSU46VkVWRU5UDQpVSUQ6dGVzdEB0cmFjY2FyLm9yZw0KRFRTVEFSVDoyMDI0MDEwMVQwMDAwMA0KRFRFTkQ6MjAyNDAxMDFUMDEwMDANClJTVUxFOkZSRUc9REFJTFkNClNVTU1BUlk6V29yayBTY2hlZHVsZQ0KRU5EOlZFVkVOVA0KRU5EOlZDQUxFTkRBUg==', attributes: {} },
   ],
   notifications: [
     { id: 1, type: 'geofenceEnter', always: false, calendarId: null, attributes: {}, notificators: 'web' },
@@ -87,8 +87,8 @@ const db = {
 
 // Generate initial positions for devices
 const generatePosition = (deviceId, offset = 0) => {
-  const baseLat = 52.2297;  // Warsaw, Poland
-  const baseLon = 21.0122;
+  const baseLat = 47.0105;  // Chisinau, Moldova
+  const baseLon = 28.8638;
   const time = new Date(Date.now() - offset * 1000);
   return {
     id: Math.floor(Math.random() * 1000000),
@@ -104,7 +104,7 @@ const generatePosition = (deviceId, offset = 0) => {
     altitude: 10 + Math.random() * 100,
     speed: Math.random() * 100,
     course: Math.random() * 360,
-    address: `ul. Marszałkowska ${Math.floor(Math.random() * 100)}, Warsaw, Poland`,
+    address: `bd. Stefan cel Mare ${Math.floor(Math.random() * 200)}, Chisinau, Moldova`,
     accuracy: 10,
     network: null,
     attributes: {
@@ -247,7 +247,7 @@ app.get('/api/server', (req, res) => {
 // Geocode
 app.get('/api/server/geocode', authMiddleware, (req, res) => {
   const { latitude, longitude } = req.query;
-  res.send(`${latitude}, ${longitude} - ul. Marszałkowska, Warsaw, Poland`);
+  res.send(`${latitude}, ${longitude} - bd. Stefan cel Mare, Chisinau, Moldova`);
 });
 
 // ============ DEVICE ENDPOINTS ============
@@ -290,6 +290,16 @@ app.post('/api/devices', authMiddleware, (req, res) => {
   db.devices.push(device);
   db.positions[device.id] = generatePosition(device.id);
   res.json(device);
+});
+
+app.get('/api/devices/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const device = db.devices.find(d => d.id === id);
+  if (device) {
+    res.json(device);
+  } else {
+    res.status(404).send('Device not found');
+  }
 });
 
 app.put('/api/devices/:id', authMiddleware, (req, res) => {
@@ -336,6 +346,17 @@ app.get('/api/positions', authMiddleware, (req, res) => {
   res.json(positions);
 });
 
+app.get('/api/positions/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const allPositions = Object.values(db.positions).flat();
+  const position = allPositions.find(p => p.id === id);
+  if (position) {
+    res.json(position);
+  } else {
+    res.status(404).send();
+  }
+});
+
 // KML Export
 app.get('/api/positions/kml', authMiddleware, (req, res) => {
   const { deviceId, from, to } = req.query;
@@ -347,7 +368,7 @@ app.get('/api/positions/kml', authMiddleware, (req, res) => {
     <Placemark>
       <name>Track</name>
       <LineString>
-        <coordinates>21.0122,52.2297,0 21.0130,52.2300,0</coordinates>
+        <coordinates>28.8638,47.0105,0 28.8650,47.0110,0</coordinates>
       </LineString>
     </Placemark>
   </Document>
@@ -364,6 +385,16 @@ app.post('/api/groups', authMiddleware, (req, res) => {
   const group = { ...req.body, id: generateId() };
   db.groups.push(group);
   res.json(group);
+});
+
+app.get('/api/groups/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const group = db.groups.find(g => g.id === id);
+  if (group) {
+    res.json(group);
+  } else {
+    res.status(404).send();
+  }
 });
 
 app.put('/api/groups/:id', authMiddleware, (req, res) => {
@@ -395,6 +426,16 @@ app.post('/api/geofences', authMiddleware, (req, res) => {
   res.json(geofence);
 });
 
+app.get('/api/geofences/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const geofence = db.geofences.find(g => g.id === id);
+  if (geofence) {
+    res.json(geofence);
+  } else {
+    res.status(404).send();
+  }
+});
+
 app.put('/api/geofences/:id', authMiddleware, (req, res) => {
   const id = parseInt(req.params.id);
   const index = db.geofences.findIndex(g => g.id === id);
@@ -422,6 +463,16 @@ app.post('/api/drivers', authMiddleware, (req, res) => {
   const driver = { ...req.body, id: generateId() };
   db.drivers.push(driver);
   res.json(driver);
+});
+
+app.get('/api/drivers/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const driver = db.drivers.find(d => d.id === id);
+  if (driver) {
+    res.json(driver);
+  } else {
+    res.status(404).send();
+  }
 });
 
 app.put('/api/drivers/:id', authMiddleware, (req, res) => {
@@ -453,6 +504,16 @@ app.post('/api/maintenance', authMiddleware, (req, res) => {
   res.json(maintenance);
 });
 
+app.get('/api/maintenance/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const maintenance = db.maintenances.find(m => m.id === id);
+  if (maintenance) {
+    res.json(maintenance);
+  } else {
+    res.status(404).send();
+  }
+});
+
 app.put('/api/maintenance/:id', authMiddleware, (req, res) => {
   const id = parseInt(req.params.id);
   const index = db.maintenances.findIndex(m => m.id === id);
@@ -482,6 +543,16 @@ app.post('/api/calendars', authMiddleware, (req, res) => {
   res.json(calendar);
 });
 
+app.get('/api/calendars/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const calendar = db.calendars.find(c => c.id === id);
+  if (calendar) {
+    res.json(calendar);
+  } else {
+    res.status(404).send();
+  }
+});
+
 app.put('/api/calendars/:id', authMiddleware, (req, res) => {
   const id = parseInt(req.params.id);
   const index = db.calendars.findIndex(c => c.id === id);
@@ -501,6 +572,56 @@ app.delete('/api/calendars/:id', authMiddleware, (req, res) => {
 
 // ============ NOTIFICATION ENDPOINTS ============
 
+// Specific routes MUST come before parameterized routes
+app.get('/api/notifications/types', authMiddleware, (req, res) => {
+  res.json([
+    { type: 'deviceOnline', name: 'Device Online' },
+    { type: 'deviceUnknown', name: 'Device Unknown' },
+    { type: 'deviceOffline', name: 'Device Offline' },
+    { type: 'geoFenceEnter', name: 'Geofence Enter' },
+    { type: 'geoFenceExit', name: 'Geofence Exit' },
+    { type: 'deviceOverspeed', name: 'Device Overspeed' },
+    { type: 'deviceFuelDrop', name: 'Fuel Drop' },
+    { type: 'deviceFuelIncrease', name: 'Fuel Increase' },
+    { type: 'alarm', name: 'Alarm' },
+    { type: 'ignitionOn', name: 'Ignition On' },
+    { type: 'ignitionOff', name: 'Ignition Off' },
+    { type: 'maintenance', name: 'Maintenance' },
+    { type: 'textMessage', name: 'Text Message' },
+    { type: 'driverChanged', name: 'Driver Changed' },
+    { type: 'commandResult', name: 'Command Result' },
+  ]);
+});
+
+app.get('/api/notifications/notificators', authMiddleware, (req, res) => {
+  const { announcement } = req.query;
+  if (announcement === 'true') {
+    return res.json([
+      { type: 'web', name: 'Web' },
+      { type: 'mail', name: 'Email' },
+    ]);
+  }
+  res.json([
+    { type: 'web', name: 'Web' },
+    { type: 'mail', name: 'Email' },
+    { type: 'sms', name: 'SMS' },
+    { type: 'firebase', name: 'Firebase' },
+  ]);
+});
+
+app.post('/api/notifications/test', authMiddleware, (req, res) => {
+  console.log('Test notification:', req.body);
+  res.status(204).send();
+});
+
+app.post('/api/notifications/test/:notificator', authMiddleware, (req, res) => {
+  res.status(204).send();
+});
+
+app.post('/api/notifications/send/:notificator', authMiddleware, (req, res) => {
+  res.status(204).send();
+});
+
 app.get('/api/notifications', authMiddleware, (req, res) => {
   res.json(db.notifications);
 });
@@ -509,6 +630,16 @@ app.post('/api/notifications', authMiddleware, (req, res) => {
   const notification = { ...req.body, id: generateId() };
   db.notifications.push(notification);
   res.json(notification);
+});
+
+app.get('/api/notifications/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const notification = db.notifications.find(n => n.id === id);
+  if (notification) {
+    res.json(notification);
+  } else {
+    res.status(404).send();
+  }
 });
 
 app.put('/api/notifications/:id', authMiddleware, (req, res) => {
@@ -593,10 +724,30 @@ app.post('/api/commands', authMiddleware, (req, res) => {
   res.json(command);
 });
 
+app.get('/api/commands/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const command = db.commands.find(c => c.id === id);
+  if (command) {
+    res.json(command);
+  } else {
+    res.status(404).send();
+  }
+});
+
 app.post('/api/commands/send', authMiddleware, (req, res) => {
   // Simulate sending command to device
   console.log('Command sent:', req.body);
   res.status(204).send();
+});
+
+app.get('/api/commands/send', authMiddleware, (req, res) => {
+  const { deviceId } = req.query;
+  // Return available commands for the device
+  res.json([
+    { type: 'engineStop', name: 'Engine Stop', deviceId: parseInt(deviceId) },
+    { type: 'engineResume', name: 'Engine Resume', deviceId: parseInt(deviceId) },
+    { type: 'rebootDevice', name: 'Reboot Device', deviceId: parseInt(deviceId) },
+  ]);
 });
 
 // ============ COMPUTED ATTRIBUTES ENDPOINTS ============
@@ -609,6 +760,16 @@ app.post('/api/attributes/computed', authMiddleware, (req, res) => {
   const attr = { ...req.body, id: generateId() };
   db.computedAttributes.push(attr);
   res.json(attr);
+});
+
+app.get('/api/attributes/computed/:id', authMiddleware, (req, res) => {
+  const id = parseInt(req.params.id);
+  const attr = db.computedAttributes.find(a => a.id === id);
+  if (attr) {
+    res.json(attr);
+  } else {
+    res.status(404).send();
+  }
 });
 
 app.put('/api/attributes/computed/:id', authMiddleware, (req, res) => {
@@ -690,10 +851,10 @@ app.get('/api/reports/trips', authMiddleware, (req, res) => {
     spentFuel: 5.2,
     startPositionId: generateId(),
     endPositionId: generateId(),
-    startLat: 52.2297,
-    startLon: 21.0122,
-    endLat: 52.2400,
-    endLon: 21.0250,
+    startLat: 47.0105,
+    startLon: 28.8638,
+    endLat: 47.0210,
+    endLon: 28.8770,
   }];
   res.json(trips);
 });
@@ -704,8 +865,8 @@ app.get('/api/reports/stops', authMiddleware, (req, res) => {
     startTime: new Date(Date.now() - 7200000).toISOString(),
     endTime: new Date(Date.now() - 3600000).toISOString(),
     duration: 3600000,
-    latitude: 52.2297,
-    longitude: 21.0122,
+    latitude: 47.0105,
+    longitude: 28.8638,
     positionId: generateId(),
     address: '123 Main St',
   }];
@@ -727,7 +888,7 @@ app.get('/api/reports/summary', authMiddleware, (req, res) => {
 // ============ STATISTICS ============
 
 app.get('/api/statistics', authMiddleware, (req, res) => {
-  res.json({
+  res.json([{
     captureTime: new Date().toISOString(),
     activeUsers: 5,
     activeDevices: db.devices.filter(d => d.status === 'online').length,
@@ -738,7 +899,7 @@ app.get('/api/statistics', authMiddleware, (req, res) => {
     smsSent: 0,
     geocoderRequests: 85,
     geolocationRequests: 45,
-  });
+  }]);
 });
 
 // ============ AUDIT LOGS ============
@@ -842,33 +1003,6 @@ app.delete('/api/permissions', authMiddleware, (req, res) => {
   res.status(204).send();
 });
 
-// ============ NOTIFICATION EXTRAS ============
-
-app.get('/api/notifications/types', authMiddleware, (req, res) => {
-  res.json([
-    { type: 'deviceOnline', name: 'Device Online' },
-    { type: 'deviceUnknown', name: 'Device Unknown' },
-    { type: 'deviceOffline', name: 'Device Offline' },
-    { type: 'geoFenceEnter', name: 'Geofence Enter' },
-    { type: 'geoFenceExit', name: 'Geofence Exit' },
-    { type: 'deviceOverspeed', name: 'Device Overspeed' },
-    { type: 'deviceFuelDrop', name: 'Fuel Drop' },
-    { type: 'deviceFuelIncrease', name: 'Fuel Increase' },
-    { type: 'alarm', name: 'Alarm' },
-    { type: 'ignitionOn', name: 'Ignition On' },
-    { type: 'ignitionOff', name: 'Ignition Off' },
-    { type: 'maintenance', name: 'Maintenance' },
-    { type: 'textMessage', name: 'Text Message' },
-    { type: 'driverChanged', name: 'Driver Changed' },
-    { type: 'commandResult', name: 'Command Result' },
-  ]);
-});
-
-app.post('/api/notifications/test', authMiddleware, (req, res) => {
-  console.log('Test notification:', req.body);
-  res.status(204).send();
-});
-
 // ============ GEOFENCE EXTRAS ============
 
 app.get('/api/geofences/route', authMiddleware, (req, res) => {
@@ -922,14 +1056,80 @@ app.get('/api/devices/:id/status', authMiddleware, (req, res) => {
 // ============ TRIP & STOP REPORTS ENHANCED ============
 
 app.get('/api/reports/combined', authMiddleware, (req, res) => {
-  const { deviceId, from, to } = req.query;
-  res.json({
-    deviceId: parseInt(deviceId),
-    from,
-    to,
-    trips: [],
-    stops: [],
-  });
+  const { deviceId, groupId, from, to } = req.query;
+  
+  let deviceIds = [];
+  
+  // Handle groupId - get all devices in the group
+  if (groupId) {
+    const parsedGroupId = parseInt(groupId);
+    const groupDevices = db.devices.filter(d => d.groupId === parsedGroupId);
+    deviceIds = groupDevices.map(d => d.id);
+  }
+  
+  // Handle deviceId
+  if (deviceId) {
+    if (Array.isArray(deviceId)) {
+      deviceIds = deviceId.map(id => parseInt(id));
+    } else {
+      deviceIds = [parseInt(deviceId)];
+    }
+  }
+  
+  // WORKAROUND: If no valid devices selected, return first device to prevent frontend crash
+  if (deviceIds.length === 0) {
+    deviceIds = [db.devices[0]?.id || 1];
+  }
+  
+  // Generate combined reports for all devices
+  const reports = deviceIds.map(id => {
+    const device = db.devices.find(d => d.id === id);
+    if (!device) return null;
+    
+    const positions = [];
+    for (let i = 0; i < 20; i++) {
+      positions.push(generatePosition(id, i * 60));
+    }
+    
+    return {
+      deviceId: id,
+      deviceName: device.name,
+      from,
+      to,
+      route: positions.map(p => [p.longitude, p.latitude]),
+      positions: positions,
+      events: [{
+        id: generateId(),
+        deviceId: id,
+        type: 'geofenceEnter',
+        eventTime: new Date().toISOString(),
+        positionId: positions[5]?.id,
+        geofenceId: 1,
+      }, {
+        id: generateId(),
+        deviceId: id,
+        type: 'geofenceExit',
+        eventTime: new Date(Date.now() + 60000).toISOString(),
+        positionId: positions[15]?.id,
+        geofenceId: 1,
+      }],
+      trips: [{
+        startTime: positions[0]?.deviceTime,
+        endTime: positions[9]?.deviceTime,
+        distance: 5000,
+        averageSpeed: 45,
+      }],
+      stops: [{
+        startTime: positions[10]?.deviceTime,
+        endTime: positions[12]?.deviceTime,
+        duration: 120000,
+        latitude: positions[11]?.latitude,
+        longitude: positions[11]?.longitude,
+      }],
+    };
+  }).filter(Boolean);
+  
+  res.json(reports);
 });
 
 // ============ CHART REPORT ============
@@ -1087,32 +1287,6 @@ app.get('/api/commands/types', authMiddleware, (req, res) => {
   ]);
 });
 
-// ============ NOTIFICATION NOTIFICATORS ============
-
-app.get('/api/notifications/notificators', authMiddleware, (req, res) => {
-  const { announcement } = req.query;
-  if (announcement === 'true') {
-    return res.json([
-      { type: 'web', name: 'Web' },
-      { type: 'mail', name: 'Email' },
-    ]);
-  }
-  res.json([
-    { type: 'web', name: 'Web' },
-    { type: 'mail', name: 'Email' },
-    { type: 'sms', name: 'SMS' },
-    { type: 'firebase', name: 'Firebase' },
-  ]);
-});
-
-app.post('/api/notifications/test/:notificator', authMiddleware, (req, res) => {
-  res.status(204).send();
-});
-
-app.post('/api/notifications/send/:notificator', authMiddleware, (req, res) => {
-  res.status(204).send();
-});
-
 // ============ PERMISSIONS BULK ============
 
 app.post('/api/permissions/bulk', authMiddleware, (req, res) => {
@@ -1171,7 +1345,7 @@ app.post('/api/devices/:id/image', authMiddleware, (req, res) => {
 app.get('/api/positions/csv', authMiddleware, (req, res) => {
   res.set('Content-Type', 'text/csv');
   res.set('Content-Disposition', 'attachment; filename=positions.csv');
-  res.send('fixTime,latitude,longitude,speed,course,address\n2024-01-01T00:00:00Z,52.2297,21.0122,50,90,"Warsaw"');
+  res.send('fixTime,latitude,longitude,speed,course,address\n2024-01-01T00:00:00Z,47.0105,28.8638,50,90,"Chisinau"');
 });
 
 // ============ MEDIA ACCESS ============

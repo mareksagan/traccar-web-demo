@@ -8,7 +8,7 @@ import {
   Box,
   useTheme,
 } from '@mui/material';
-import QRCode from 'react-qr-code';
+import { QRCodeSVG } from 'qrcode.react';
 import { useTranslation } from './LocalizationProvider';
 
 const QrCodeDialog = ({ open, onClose }) => {
@@ -24,7 +24,7 @@ const QrCodeDialog = ({ open, onClose }) => {
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogContent>
         <Box display="flex" justifyContent="center" mb={2}>
-          <QRCode value={fullUrl} size={theme.dimensions.qrCodeSize} />
+          <QRCodeSVG value={fullUrl} size={theme.dimensions.qrCodeSize} />
         </Box>
 
         <TextField

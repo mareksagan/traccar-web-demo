@@ -12,6 +12,7 @@ import {
   Tooltip,
   Box,
   InputAdornment,
+  Alert,
 } from '@mui/material';
 import CountryFlag from 'react-country-flag';
 import { makeStyles } from 'tss-react/mui';
@@ -194,6 +195,11 @@ const LoginPage = () => {
         )}
       </div>
       <div className={classes.container}>
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <strong>Demo Credentials</strong><br />
+          Email: admin@admin.com<br />
+          Password: admin
+        </Alert>
         {useMediaQuery(theme.breakpoints.down('lg')) && (
           <LogoImage color={theme.palette.primary.main} />
         )}
