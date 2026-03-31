@@ -1,88 +1,114 @@
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { useMediaQuery, useTheme } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import BottomMenu from './common/components/BottomMenu';
+import { createSignal, createEffect, Show, onMount } from 'solid-js';
+import { useNavigate, useLocation } from '@solidjs/router';
+import { session, sessionActions, devicesActions } from './stores';
+import { useLocalization } from './common/components/LocalizationProvider';
 import SocketController from './SocketController';
-import CachingController from './CachingController';
-import { useCatch, useEffectAsync } from './reactHelper';
-import { sessionActions } from './store';
-import UpdateController from './UpdateController';
-import MotionController from './main/MotionController';
+import ErrorHandler from './common/components/ErrorHandler';
+import BottomMenu from './common/components/BottomMenu';
 import TermsDialog from './common/components/TermsDialog';
 import Loader from './common/components/Loader';
+import preloadImages from './map/core/preloadImages';
 import fetchOrThrow from './common/util/fetchOrThrow';
 
-const useStyles = makeStyles()(() => ({
-  page: {
-    flexGrow: 1,
-    overflow: 'auto',
-  },
-  menu: {
-    zIndex: 4,
-    '@media print': {
-      display: 'none',
-    },
-  },
-}));
+// Preload images
+preloadImages();
 
-const App = () => {
-  const { classes } = useStyles();
-  const theme = useTheme();
-  const dispatch = useDispatch();
+export default function App(props) {
   const navigate = useNavigate();
-  const { pathname, search } = useLocation();
+  const location = useLocation();
+  const localization = useLocalization();
+  const [loading, setLoading] = createSignal(!session.user); // Don't load if already logged in
+  
+  const direction = () => localization.direction;
 
-  const desktop = useMediaQuery(theme.breakpoints.up('md'));
-
-  const newServer = useSelector((state) => state.session.server.newServer);
-  const termsUrl = useSelector((state) => state.session.server.attributes.termsUrl);
-  const user = useSelector((state) => state.session.user);
-
-  const acceptTerms = useCatch(async () => {
-    const response = await fetchOrThrow(`/api/users/${user.id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...user, attributes: { ...user.attributes, termsAccepted: true } }),
-    });
-    dispatch(sessionActions.updateUser(await response.json()));
-  });
-
-  useEffectAsync(async () => {
-    if (!user) {
+  onMount(async () => {
+    // If already logged in, fetch server and skip session check
+    if (session.user) {
+      try {
+        const response = await fetch('/api/server');
+        if (response.ok) {
+          const server = await response.json();
+          sessionActions.updateServer(server);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+    
+    // Check session
+    try {
       const response = await fetch('/api/session');
       if (response.ok) {
-        dispatch(sessionActions.updateUser(await response.json()));
+        const user = await response.json();
+        sessionActions.updateUser(user);
       } else {
-        window.sessionStorage.setItem('postLogin', pathname + search);
-        navigate(newServer ? '/register' : '/login', { replace: true });
+        window.sessionStorage.setItem('postLogin', location.pathname + location.search);
+        navigate('/login');
       }
+    } catch (err) {
+      console.error('Session check failed:', err);
+      window.sessionStorage.setItem('postLogin', location.pathname + location.search);
+      navigate('/login');
     }
-    return null;
-  }, []);
+    
+    // Fetch server info (for both logged in and new sessions)
+    try {
+      const response = await fetch('/api/server');
+      if (response.ok) {
+        const server = await response.json();
+        sessionActions.updateServer(server);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  });
 
-  if (user == null) {
-    return <Loader />;
-  }
-  if (termsUrl && !user.attributes.termsAccepted) {
-    return <TermsDialog open onCancel={() => navigate('/login')} onAccept={() => acceptTerms()} />;
-  }
+  const acceptTerms = async () => {
+    try {
+      const response = await fetchOrThrow(`/api/users/${session.user.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...session.user,
+          attributes: { ...session.user.attributes, termsAccepted: true },
+        }),
+      });
+      sessionActions.updateUser(await response.json());
+    } catch (error) {
+      console.error('Failed to accept terms:', error);
+    }
+  };
+
+  const needsTermsAcceptance = () => {
+    return session.server?.attributes?.termsUrl && 
+           !session.user?.attributes?.termsAccepted;
+  };
+
   return (
-    <>
-      <SocketController />
-      <CachingController />
-      <UpdateController />
-      <MotionController />
-      <div className={classes.page}>
-        <Outlet />
-      </div>
-      {!desktop && (
-        <div className={classes.menu}>
-          <BottomMenu />
-        </div>
-      )}
-    </>
+    <div class="h-full w-full" dir={direction()}>
+      <Show when={!loading()} fallback={<Loader />}>
+        <Show
+          when={!needsTermsAcceptance()}
+          fallback={
+            <TermsDialog
+              open
+              onCancel={() => navigate('/login')}
+              onAccept={acceptTerms}
+            />
+          }
+        >
+          <SocketController />
+          <ErrorHandler />
+          <main class="h-full w-full">
+            {props.children}
+          </main>
+        </Show>
+      </Show>
+    </div>
   );
-};
-
-export default App;
+}

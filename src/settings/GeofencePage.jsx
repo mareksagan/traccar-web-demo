@@ -1,104 +1,111 @@
-import { useState } from 'react';
-import { useDispatch } from 'react-redux';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  TextField,
-  FormControlLabel,
-  Checkbox,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import EditItemView from './components/EditItemView';
-import EditAttributesAccordion from './components/EditAttributesAccordion';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import useGeofenceAttributes from '../common/attributes/useGeofenceAttributes';
-import SettingsMenu from './components/SettingsMenu';
-import SelectField from '../common/components/SelectField';
-import { geofencesActions } from '../store';
-import useSettingsStyles from './common/useSettingsStyles';
+import NavBar from '../common/components/NavBar';
 
-const GeofencePage = () => {
-  const { classes } = useSettingsStyles();
-  const dispatch = useDispatch();
+export default function GeofencePage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  
+  const [geofence, setGeofence] = createSignal({
+    name: '',
+    area: '',
+    attributes: {},
+  });
+  const [loading, setLoading] = createSignal(false);
 
-  const geofenceAttributes = useGeofenceAttributes(t);
+  createEffect(async () => {
+    if (params.id) {
+      try {
+        const response = await fetch(`/api/geofences/${params.id}`);
+        if (response.ok) {
+          setGeofence(await response.json());
+        }
+      } catch (error) {
+        console.error('Failed to load geofence:', error);
+      }
+    }
+  });
 
-  const [item, setItem] = useState();
-
-  const onItemSaved = (result) => {
-    dispatch(geofencesActions.update([result]));
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const url = params.id ? `/api/geofences/${params.id}` : '/api/geofences';
+      const method = params.id ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(geofence()),
+      });
+      
+      if (response.ok) {
+        navigate('/settings/geofences');
+      }
+    } catch (error) {
+      console.error('Failed to save geofence:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const validate = () => item && item.name;
-
   return (
-    <EditItemView
-      endpoint="geofences"
-      item={item}
-      setItem={setItem}
-      validate={validate}
-      onItemSaved={onItemSaved}
-      menu={<SettingsMenu />}
-      breadcrumbs={['settingsTitle', 'sharedGeofence']}
-    >
-      {item && (
-        <>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedRequired')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <TextField
-                value={item.name || ''}
-                onChange={(event) => setItem({ ...item, name: event.target.value })}
-                label={t('sharedName')}
-              />
-            </AccordionDetails>
-          </Accordion>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedExtra')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <TextField
-                value={item.description || ''}
-                onChange={(event) => setItem({ ...item, description: event.target.value })}
-                label={t('sharedDescription')}
-              />
-              <SelectField
-                value={item.calendarId}
-                onChange={(event) => setItem({ ...item, calendarId: Number(event.target.value) })}
-                endpoint="/api/calendars"
-                label={t('sharedCalendar')}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={item.attributes.hide}
-                    onChange={(e) =>
-                      setItem({
-                        ...item,
-                        attributes: { ...item.attributes, hide: e.target.checked },
-                      })
-                    }
-                  />
-                }
-                label={t('sharedFilterMap')}
-              />
-            </AccordionDetails>
-          </Accordion>
-          <EditAttributesAccordion
-            attributes={item.attributes}
-            setAttributes={(attributes) => setItem({ ...item, attributes })}
-            definitions={geofenceAttributes}
-          />
-        </>
-      )}
-    </EditItemView>
-  );
-};
+    <div class="max-w-2xl mx-auto">
+      <NavBar
+        title={params.id ? t('sharedGeofence') : t('sharedAddGeofence')}
+        onBack={() => navigate('/settings/geofences')}
+      />
 
-export default GeofencePage;
+      <form onSubmit={handleSubmit} class="mt-6 space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('sharedName')} *
+            </label>
+            <input
+              type="text"
+              value={geofence().name}
+              onInput={(e) => setGeofence((prev) => ({ ...prev, name: e.target.value }))}
+              required
+              class="input"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('geofenceArea')} *
+            </label>
+            <textarea
+              value={geofence().area}
+              onInput={(e) => setGeofence((prev) => ({ ...prev, area: e.target.value }))}
+              placeholder="CIRCLE(lat,lon,radius) or POLYGON((lat1 lon1, lat2 lon2, ...))"
+              required
+              rows="3"
+              class="input font-mono text-sm"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/settings/geofences')}
+            class="btn bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            {t('sharedCancel')}
+          </button>
+          <button
+            type="submit"
+            disabled={!geofence().name || !geofence().area || loading()}
+            class="btn btn-primary flex-1"
+          >
+            {loading() ? t('sharedLoading') : t('sharedSave')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

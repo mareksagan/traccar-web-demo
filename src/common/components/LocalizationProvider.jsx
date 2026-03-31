@@ -1,121 +1,121 @@
-import { createContext, use, useEffect, useMemo } from 'react';
-import { useSelector } from 'react-redux';
+import { createContext, useContext, createSignal, createEffect, onMount } from 'solid-js';
 import dayjs from 'dayjs';
-import usePersistedState from '../util/usePersistedState';
+import { createPersistedState } from '../../stores';
 
-import af from '../../resources/l10n/af.json';
+// Import all language files
+import af from '../../resources/af.json';
 import 'dayjs/locale/af';
-import ar from '../../resources/l10n/ar.json';
+import ar from '../../resources/ar.json';
 import 'dayjs/locale/ar';
-import az from '../../resources/l10n/az.json';
+import az from '../../resources/az.json';
 import 'dayjs/locale/az';
-import bg from '../../resources/l10n/bg.json';
+import bg from '../../resources/bg.json';
 import 'dayjs/locale/bg';
-import bn from '../../resources/l10n/bn.json';
+import bn from '../../resources/bn.json';
 import 'dayjs/locale/bn';
-import ca from '../../resources/l10n/ca.json';
+import ca from '../../resources/ca.json';
 import 'dayjs/locale/ca';
-import cs from '../../resources/l10n/cs.json';
+import cs from '../../resources/cs.json';
 import 'dayjs/locale/cs';
-import da from '../../resources/l10n/da.json';
+import da from '../../resources/da.json';
 import 'dayjs/locale/da';
-import de from '../../resources/l10n/de.json';
+import de from '../../resources/de.json';
 import 'dayjs/locale/de';
-import el from '../../resources/l10n/el.json';
+import el from '../../resources/el.json';
 import 'dayjs/locale/el';
-import en from '../../resources/l10n/en.json';
+import en from '../../resources/en.json';
 import 'dayjs/locale/en';
-import es from '../../resources/l10n/es.json';
+import es from '../../resources/es.json';
 import 'dayjs/locale/es';
-import fa from '../../resources/l10n/fa.json';
+import fa from '../../resources/fa.json';
 import 'dayjs/locale/fa';
-import fi from '../../resources/l10n/fi.json';
+import fi from '../../resources/fi.json';
 import 'dayjs/locale/fi';
-import fr from '../../resources/l10n/fr.json';
+import fr from '../../resources/fr.json';
 import 'dayjs/locale/fr';
-import gl from '../../resources/l10n/gl.json';
+import gl from '../../resources/gl.json';
 import 'dayjs/locale/gl';
-import he from '../../resources/l10n/he.json';
+import he from '../../resources/he.json';
 import 'dayjs/locale/he';
-import hi from '../../resources/l10n/hi.json';
+import hi from '../../resources/hi.json';
 import 'dayjs/locale/hi';
-import hr from '../../resources/l10n/hr.json';
+import hr from '../../resources/hr.json';
 import 'dayjs/locale/hr';
-import hu from '../../resources/l10n/hu.json';
+import hu from '../../resources/hu.json';
 import 'dayjs/locale/hu';
-import id from '../../resources/l10n/id.json';
+import id from '../../resources/id.json';
 import 'dayjs/locale/id';
-import it from '../../resources/l10n/it.json';
+import it from '../../resources/it.json';
 import 'dayjs/locale/it';
-import ja from '../../resources/l10n/ja.json';
+import ja from '../../resources/ja.json';
 import 'dayjs/locale/ja';
-import ka from '../../resources/l10n/ka.json';
+import ka from '../../resources/ka.json';
 import 'dayjs/locale/ka';
-import kk from '../../resources/l10n/kk.json';
+import kk from '../../resources/kk.json';
 import 'dayjs/locale/kk';
-import km from '../../resources/l10n/km.json';
+import km from '../../resources/km.json';
 import 'dayjs/locale/km';
-import ko from '../../resources/l10n/ko.json';
+import ko from '../../resources/ko.json';
 import 'dayjs/locale/ko';
-import lo from '../../resources/l10n/lo.json';
+import lo from '../../resources/lo.json';
 import 'dayjs/locale/lo';
-import lt from '../../resources/l10n/lt.json';
+import lt from '../../resources/lt.json';
 import 'dayjs/locale/lt';
-import lv from '../../resources/l10n/lv.json';
+import lv from '../../resources/lv.json';
 import 'dayjs/locale/lv';
-import mk from '../../resources/l10n/mk.json';
+import mk from '../../resources/mk.json';
 import 'dayjs/locale/mk';
-import ml from '../../resources/l10n/ml.json';
+import ml from '../../resources/ml.json';
 import 'dayjs/locale/ml';
-import mn from '../../resources/l10n/mn.json';
+import mn from '../../resources/mn.json';
 import 'dayjs/locale/mn';
-import ms from '../../resources/l10n/ms.json';
+import ms from '../../resources/ms.json';
 import 'dayjs/locale/ms';
-import nb from '../../resources/l10n/nb.json';
+import nb from '../../resources/nb.json';
 import 'dayjs/locale/nb';
-import ne from '../../resources/l10n/ne.json';
+import ne from '../../resources/ne.json';
 import 'dayjs/locale/ne';
-import nl from '../../resources/l10n/nl.json';
+import nl from '../../resources/nl.json';
 import 'dayjs/locale/nl';
-import nn from '../../resources/l10n/nn.json';
+import nn from '../../resources/nn.json';
 import 'dayjs/locale/nn';
-import pl from '../../resources/l10n/pl.json';
+import pl from '../../resources/pl.json';
 import 'dayjs/locale/pl';
-import pt from '../../resources/l10n/pt.json';
+import pt from '../../resources/pt.json';
 import 'dayjs/locale/pt';
-import pt_BR from '../../resources/l10n/pt_BR.json';
+import pt_BR from '../../resources/pt_BR.json';
 import 'dayjs/locale/pt-br';
-import ro from '../../resources/l10n/ro.json';
+import ro from '../../resources/ro.json';
 import 'dayjs/locale/ro';
-import ru from '../../resources/l10n/ru.json';
+import ru from '../../resources/ru.json';
 import 'dayjs/locale/ru';
-import si from '../../resources/l10n/si.json';
+import si from '../../resources/si.json';
 import 'dayjs/locale/si';
-import sk from '../../resources/l10n/sk.json';
+import sk from '../../resources/sk.json';
 import 'dayjs/locale/sk';
-import sl from '../../resources/l10n/sl.json';
+import sl from '../../resources/sl.json';
 import 'dayjs/locale/sl';
-import sq from '../../resources/l10n/sq.json';
+import sq from '../../resources/sq.json';
 import 'dayjs/locale/sq';
-import sr from '../../resources/l10n/sr.json';
+import sr from '../../resources/sr.json';
 import 'dayjs/locale/sr';
-import sv from '../../resources/l10n/sv.json';
+import sv from '../../resources/sv.json';
 import 'dayjs/locale/sv';
-import ta from '../../resources/l10n/ta.json';
+import ta from '../../resources/ta.json';
 import 'dayjs/locale/ta';
-import th from '../../resources/l10n/th.json';
+import th from '../../resources/th.json';
 import 'dayjs/locale/th';
-import tr from '../../resources/l10n/tr.json';
+import tr from '../../resources/tr.json';
 import 'dayjs/locale/tr';
-import uk from '../../resources/l10n/uk.json';
+import uk from '../../resources/uk.json';
 import 'dayjs/locale/uk';
-import uz from '../../resources/l10n/uz.json';
+import uz from '../../resources/uz.json';
 import 'dayjs/locale/uz';
-import vi from '../../resources/l10n/vi.json';
+import vi from '../../resources/vi.json';
 import 'dayjs/locale/vi';
-import zh from '../../resources/l10n/zh.json';
+import zh from '../../resources/zh.json';
 import 'dayjs/locale/zh';
-import zh_TW from '../../resources/l10n/zh_TW.json';
+import zh_TW from '../../resources/zh_TW.json';
 import 'dayjs/locale/zh-tw';
 
 const languages = {
@@ -149,10 +149,10 @@ const languages = {
   lo: { data: lo, country: 'LA', name: 'ລາວ' },
   lt: { data: lt, country: 'LT', name: 'Lietuvių' },
   lv: { data: lv, country: 'LV', name: 'Latviešu' },
-  mk: { data: mk, country: 'MK', name: 'Mакедонски' },
+  mk: { data: mk, country: 'MK', name: 'Македонски' },
   ml: { data: ml, country: 'IN', name: 'മലയാളം' },
   mn: { data: mn, country: 'MN', name: 'Монгол хэл' },
-  ms: { data: ms, country: 'MY', name: 'بهاس ملايو' },
+  ms: { data: ms, country: 'MY', name: 'Bahasa Melayu' },
   nb: { data: nb, country: 'NO', name: 'Norsk bokmål' },
   ne: { data: ne, country: 'NP', name: 'नेपाली' },
   nl: { data: nl, country: 'NL', name: 'Nederlands' },
@@ -179,7 +179,7 @@ const languages = {
 };
 
 const getDefaultLanguage = () => {
-  const browserLanguages = window.navigator.languages ? window.navigator.languages.slice() : [];
+  const browserLanguages = window.navigator.languages ? [...window.navigator.languages] : [];
   const browserLanguage = window.navigator.userLanguage || window.navigator.language;
   browserLanguages.push(browserLanguage);
   browserLanguages.push(browserLanguage.substring(0, 2));
@@ -203,51 +203,61 @@ const LocalizationContext = createContext({
   languages,
   language: 'en',
   setLocalLanguage: () => {},
+  direction: 'ltr',
 });
 
-export const LocalizationProvider = ({ children }) => {
-  const remoteLanguage = useSelector((state) => {
-    const serverLanguage = state.session.server?.attributes?.language;
-    const userLanguage = state.session.user?.attributes?.language;
-    const targetLanguage = userLanguage || serverLanguage;
-    return targetLanguage && targetLanguage in languages ? targetLanguage : null;
-  });
+export function LocalizationProvider(props) {
+  const [localLanguage, setLocalLanguage] = createPersistedState('language', getDefaultLanguage());
+  const [direction, setDirection] = createSignal('ltr');
 
-  const [localLanguage, setLocalLanguage] = usePersistedState('language', getDefaultLanguage());
+  const language = () => localLanguage();
 
-  const language = remoteLanguage || localLanguage;
-
-  const direction = /^(ar|he|fa)$/.test(language) ? 'rtl' : 'ltr';
-
-  const value = useMemo(
-    () => ({ languages, language, setLocalLanguage, direction }),
-    [language, setLocalLanguage, direction],
-  );
-
-  useEffect(() => {
+  createEffect(() => {
+    const lang = language();
+    const isRTL = /^(ar|he|fa)$/.test(lang);
+    setDirection(isRTL ? 'rtl' : 'ltr');
+    
     let selected;
-    if (language.length > 2) {
-      selected = `${language.slice(0, 2)}-${language.slice(-2).toLowerCase()}`;
+    if (lang.length > 2) {
+      selected = `${lang.slice(0, 2)}-${lang.slice(-2).toLowerCase()}`;
     } else {
-      selected = language;
+      selected = lang;
     }
     dayjs.locale(selected);
-    document.dir = direction;
-  }, [language, direction]);
+    document.dir = isRTL ? 'rtl' : 'ltr';
+  });
 
-  return <LocalizationContext value={value}>{children}</LocalizationContext>;
-};
+  const value = {
+    languages,
+    get language() { return language(); },
+    setLocalLanguage,
+    get direction() { return direction(); },
+  };
 
-export const useLocalization = () => use(LocalizationContext);
+  return (
+    <LocalizationContext.Provider value={value}>
+      {props.children}
+    </LocalizationContext.Provider>
+  );
+}
 
-export const useTranslation = () => {
-  const context = use(LocalizationContext);
-  const { data } = context.languages[context.language];
-  return useMemo(() => (key) => data[key], [data]);
-};
+export function useLocalization() {
+  return useContext(LocalizationContext);
+}
 
-export const useTranslationKeys = (predicate) => {
-  const context = use(LocalizationContext);
-  const { data } = context.languages[context.language];
+export function useTranslation() {
+  const context = useContext(LocalizationContext);
+  return (key) => {
+    try {
+      return context.languages[context.language]?.data?.[key] || key;
+    } catch {
+      return key;
+    }
+  };
+}
+
+export function useTranslationKeys(predicate) {
+  const context = useContext(LocalizationContext);
+  const data = context.languages[context.language].data;
   return Object.keys(data).filter(predicate);
-};
+}

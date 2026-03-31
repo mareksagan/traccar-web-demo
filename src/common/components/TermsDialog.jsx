@@ -1,45 +1,56 @@
-import { useSelector } from 'react-redux';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  Link,
-} from '@mui/material';
+import { createSignal, createEffect } from 'solid-js';
+import { session } from '../../stores';
 import { useTranslation } from './LocalizationProvider';
 
-const TermsDialog = ({ open, onCancel, onAccept }) => {
+export default function TermsDialog(props) {
   const t = useTranslation();
+  const [terms, setTerms] = createSignal('');
 
-  const termsUrl = useSelector((state) => state.session.server.attributes.termsUrl);
-  const privacyUrl = useSelector((state) => state.session.server.attributes.privacyUrl);
+  createEffect(async () => {
+    if (props.open && session.server?.attributes?.termsUrl) {
+      try {
+        const response = await fetch(session.server.attributes.termsUrl);
+        const text = await response.text();
+        setTerms(text);
+      } catch {
+        setTerms('');
+      }
+    }
+  });
+
+  if (!props.open) return null;
 
   return (
-    <Dialog open={open} onClose={onCancel}>
-      <DialogContent>
-        <DialogContentText>
-          {t('userTermsPrompt')}
-          <ul>
-            <li>
-              <Link href={termsUrl} target="_blank">
-                {t('userTerms')}
-              </Link>
-            </li>
-            <li>
-              <Link href={privacyUrl} target="_blank">
-                {t('userPrivacy')}
-              </Link>
-            </li>
-          </ul>
-        </DialogContentText>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancel}>{t('sharedCancel')}</Button>
-        <Button onClick={onAccept}>{t('sharedAccept')}</Button>
-      </DialogActions>
-    </Dialog>
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
+          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+            {t('loginTerms')}
+          </h2>
+        </div>
+        
+        <div class="flex-1 overflow-auto p-4">
+          <div 
+            class="prose dark:prose-invert max-w-none"
+            innerHTML={terms()}
+          />
+        </div>
+        
+        <div class="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+          <button
+            onClick={props.onCancel}
+            class="btn bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            {t('sharedCancel')}
+          </button>
+          <button
+            onClick={props.onAccept}
+            class="btn btn-primary"
+          >
+            {t('sharedAccept')}
+          </button>
+        </div>
+      </div>
+    </div>
   );
-};
-
-export default TermsDialog;
+}

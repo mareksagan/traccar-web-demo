@@ -1,111 +1,50 @@
-import { useCallback, useState } from 'react';
-
-import { Typography, AppBar, Toolbar, IconButton } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useEffectAsync } from '../reactHelper';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import MapView from '../map/core/MapView';
-import MapCamera from '../map/MapCamera';
-import MapPositions from '../map/MapPositions';
-import MapGeofence from '../map/MapGeofence';
-import StatusCard from '../common/components/StatusCard';
-import { formatNotificationTitle } from '../common/util/formatter';
-import MapScale from '../map/MapScale';
-import BackIcon from '../common/components/BackIcon';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import { formatTime } from '../common/util/formatter';
+import { devices } from '../stores';
+import NavBar from '../common/components/NavBar';
 
-const useStyles = makeStyles()(() => ({
-  root: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  toolbar: {
-    zIndex: 1,
-  },
-  mapContainer: {
-    flexGrow: 1,
-  },
-}));
-
-const EventPage = () => {
-  const { classes } = useStyles();
-  const navigate = useNavigate();
+export default function EventPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  const [event, setEvent] = createSignal(null);
 
-  const { id } = useParams();
-
-  const [event, setEvent] = useState();
-  const [position, setPosition] = useState();
-  const [showCard, setShowCard] = useState(false);
-
-  const formatType = (event) =>
-    formatNotificationTitle(t, {
-      type: event.type,
-      attributes: {
-        alarms: event.attributes.alarm,
-      },
-    });
-
-  const onMarkerClick = useCallback(
-    (positionId) => {
-      setShowCard(Boolean(positionId));
-    },
-    [setShowCard],
-  );
-
-  useEffectAsync(async () => {
-    if (id) {
-      const response = await fetchOrThrow(`/api/events/${id}`);
-      setEvent(await response.json());
+  createEffect(async () => {
+    if (params.id) {
+      try {
+        const res = await fetch(`/api/events/${params.id}`);
+        if (res.ok) setEvent(await res.json());
+      } catch (e) {}
     }
-  }, [id]);
+  });
 
-  useEffectAsync(async () => {
-    if (event && event.positionId) {
-      const response = await fetchOrThrow(`/api/positions?id=${event.positionId}`);
-      const positions = await response.json();
-      if (positions.length > 0) {
-        setPosition(positions[0]);
-      }
-    }
-  }, [event]);
+  const getEventTitle = () => {
+    const e = event();
+    if (!e) return '';
+    if (e.type === 'alarm') return `${t('alarmGeneral')}: ${e.attributes?.alarm || ''}`;
+    return t(`event${e.type.charAt(0).toUpperCase() + e.type.slice(1)}`) || e.type;
+  };
 
   return (
-    <div className={classes.root}>
-      <AppBar color="inherit" position="static" className={classes.toolbar}>
-        <Toolbar>
-          <IconButton color="inherit" edge="start" sx={{ mr: 2 }} onClick={() => navigate('/')}>
-            <BackIcon />
-          </IconButton>
-          <Typography variant="h6">{event && formatType(event)}</Typography>
-        </Toolbar>
-      </AppBar>
-      <div className={classes.mapContainer}>
-        <MapView>
-          <MapGeofence />
-          {position && (
-            <MapPositions
-              positions={[position]}
-              onMarkerClick={onMarkerClick}
-              titleField="fixTime"
-            />
-          )}
-        </MapView>
-        <MapScale />
-        {position && <MapCamera latitude={position.latitude} longitude={position.longitude} />}
-        {position && showCard && (
-          <StatusCard
-            deviceId={position.deviceId}
-            position={position}
-            onClose={() => setShowCard(false)}
-            disableActions
-          />
-        )}
-      </div>
+    <div class="h-full flex flex-col">
+      <NavBar title={t('reportEvent')} onBack={() => navigate('/')} />
+      <Show when={event()} fallback={<div class="flex-1 flex items-center justify-center">{t('sharedLoading')}</div>}>
+        <div class="flex-1 p-4">
+          <div class="max-w-2xl mx-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+            <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">{getEventTitle()}</h2>
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-2"><span class="text-gray-500">{t('positionFixTime')}</span><span class="text-gray-900 dark:text-white">{formatTime(event().eventTime)}</span></div>
+              <div class="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-2"><span class="text-gray-500">{t('sharedDevice')}</span><span class="text-gray-900 dark:text-white">{devices.items[event().deviceId]?.name || event().deviceId}</span></div>
+              <div class="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-2"><span class="text-gray-500">{t('sharedType')}</span><span class="text-gray-900 dark:text-white">{event().type}</span></div>
+              <Show when={event().geofenceId}><div class="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-2"><span class="text-gray-500">{t('sharedGeofence')}</span><span class="text-gray-900 dark:text-white">{event().geofenceId}</span></div></Show>
+              <Show when={event().maintenanceId}><div class="flex justify-between border-b border-gray-200 dark:border-gray-700 pb-2"><span class="text-gray-500">{t('maintenanceMaintenance')}</span><span class="text-gray-900 dark:text-white">{event().maintenanceId}</span></div></Show>
+              <Show when={event().attributes?.message}><div class="pt-2"><span class="text-gray-500">{t('commandMessage')}</span><p class="mt-1 text-gray-900 dark:text-white">{event().attributes.message}</p></div></Show>
+            </div>
+          </div>
+        </div>
+      </Show>
     </div>
   );
-};
-
-export default EventPage;
+}

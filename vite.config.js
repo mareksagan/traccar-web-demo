@@ -1,8 +1,9 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+import solid from 'vite-plugin-solid';
 import svgr from 'vite-plugin-svgr';
 import { VitePWA } from 'vite-plugin-pwa';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
+import tailwindcss from '@tailwindcss/vite';
 
 const replacePlaceholders = () => ({
   name: 'replace-placeholders',
@@ -31,11 +32,20 @@ export default defineConfig(() => ({
   },
   build: {
     outDir: 'build',
+    target: 'esnext',
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true,
+      },
+    },
   },
   plugins: [
     replacePlaceholders(),
+    tailwindcss(),
     svgr(),
-    react(),
+    solid(),
     VitePWA({
       includeAssets: ['favicon.ico', 'apple-touch-icon-180x180.png'],
       workbox: {
@@ -44,9 +54,9 @@ export default defineConfig(() => ({
         globPatterns: ['**/*.{js,css,html,woff,woff2,mp3}'],
       },
       manifest: {
-        short_name: '${title}',
-        name: '${description}',
-        theme_color: '${colorPrimary}',
+        short_name: 'Traccar',
+        name: 'Traccar GPS Tracking System',
+        theme_color: '#1a237e',
         icons: [
           {
             src: 'pwa-64x64.png',

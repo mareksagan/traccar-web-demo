@@ -1,290 +1,62 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { useTheme } from '@mui/material/styles';
-import { IconButton, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
-import GpsFixedIcon from '@mui/icons-material/GpsFixed';
-import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
-import RouteIcon from '@mui/icons-material/Route';
-import {
-  formatAddress,
-  formatDistance,
-  formatSpeed,
-  formatVolume,
-  formatTime,
-  formatNumericHours,
-} from '../common/util/formatter';
-import ReportFilter from './components/ReportFilter';
-import { useAttributePreference, usePreference } from '../common/util/preferences';
+import { createSignal, createEffect, For, Show } from 'solid-js';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import PageLayout from '../common/components/PageLayout';
-import ReportsMenu from './components/ReportsMenu';
-import ColumnSelect from './components/ColumnSelect';
-import usePersistedState from '../common/util/usePersistedState';
-import { useCatch, useEffectAsync } from '../reactHelper';
-import useReportStyles from './common/useReportStyles';
-import MapView from '../map/core/MapView';
-import MapRoutePath from '../map/MapRoutePath';
-import AddressValue from '../common/components/AddressValue';
-import TableShimmer from '../common/components/TableShimmer';
-import MapMarkers from '../map/MapMarkers';
-import MapCamera from '../map/MapCamera';
-import MapGeofence from '../map/MapGeofence';
-import scheduleReport from './common/scheduleReport';
-import MapScale from '../map/MapScale';
-import fetchOrThrow from '../common/util/fetchOrThrow';
-import exportExcel from '../common/util/exportExcel';
-import { deviceEquality } from '../common/util/deviceEquality';
+import { devices } from '../stores';
+import { formatTime, formatSpeed, formatDistance, formatDuration } from '../common/util/formatter';
 
-const columnsArray = [
-  ['startTime', 'reportStartTime'],
-  ['startOdometer', 'reportStartOdometer'],
-  ['startAddress', 'reportStartAddress'],
-  ['endTime', 'reportEndTime'],
-  ['endOdometer', 'reportEndOdometer'],
-  ['endAddress', 'reportEndAddress'],
-  ['distance', 'sharedDistance'],
-  ['averageSpeed', 'reportAverageSpeed'],
-  ['maxSpeed', 'reportMaximumSpeed'],
-  ['duration', 'reportDuration'],
-  ['spentFuel', 'reportSpentFuel'],
-  ['driverName', 'sharedDriver'],
-];
-const columnsMap = new Map(columnsArray);
-
-const TripReportPage = () => {
-  const navigate = useNavigate();
-  const { classes } = useReportStyles();
+export default function TripReportPage() {
   const t = useTranslation();
-  const theme = useTheme();
+  const [deviceId, setDeviceId] = createSignal('');
+  const [from, setFrom] = createSignal('');
+  const [to, setTo] = createSignal('');
+  const [trips, setTrips] = createSignal([]);
+  const [loading, setLoading] = createSignal(false);
 
-  const devices = useSelector((state) => state.devices.items, deviceEquality(['id', 'name']));
-
-  const distanceUnit = useAttributePreference('distanceUnit');
-  const speedUnit = useAttributePreference('speedUnit');
-  const volumeUnit = useAttributePreference('volumeUnit');
-  const coordinateFormat = usePreference('coordinateFormat');
-
-  const [columns, setColumns] = usePersistedState('tripColumns', [
-    'startTime',
-    'endTime',
-    'distance',
-    'averageSpeed',
-  ]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [route, setRoute] = useState(null);
-
-  const createMarkers = () => [
-    {
-      latitude: selectedItem.startLat,
-      longitude: selectedItem.startLon,
-      image: 'start-success',
-    },
-    {
-      latitude: selectedItem.endLat,
-      longitude: selectedItem.endLon,
-      image: 'finish-error',
-    },
-  ];
-
-  useEffectAsync(async () => {
-    if (selectedItem) {
-      const query = new URLSearchParams({
-        deviceId: selectedItem.deviceId,
-        from: selectedItem.startTime,
-        to: selectedItem.endTime,
-      });
-      const response = await fetchOrThrow(`/api/reports/route?${query.toString()}`, {
-        headers: { Accept: 'application/json' },
-      });
-      setRoute(await response.json());
-    } else {
-      setRoute(null);
-    }
-  }, [selectedItem]);
-
-  const onShow = useCatch(async ({ deviceIds, groupIds, from, to }) => {
-    const query = new URLSearchParams({ from, to });
-    deviceIds.forEach((deviceId) => query.append('deviceId', deviceId));
-    groupIds.forEach((groupId) => query.append('groupId', groupId));
+  const handleLoad = async () => {
+    if (!deviceId() || !from() || !to()) return;
     setLoading(true);
     try {
-      const response = await fetchOrThrow(`/api/reports/trips?${query.toString()}`, {
-        headers: { Accept: 'application/json' },
-      });
-      setItems(await response.json());
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  const onExport = useCatch(async () => {
-    const sheets = new Map();
-    items.forEach((item) => {
-      const deviceName = devices[item.deviceId].name;
-      if (!sheets.has(deviceName)) {
-        sheets.set(deviceName, []);
-      }
-      const row = {};
-      columns.forEach((key) => {
-        const header = t(columnsMap.get(key));
-        if (key === 'startAddress') {
-          row[header] = formatAddress(
-            {
-              address: item.startAddress,
-              latitude: item.startLat,
-              longitude: item.startLon,
-            },
-            coordinateFormat,
-          );
-        } else if (key === 'endAddress') {
-          row[header] = formatAddress(
-            {
-              address: item.endAddress,
-              latitude: item.endLat,
-              longitude: item.endLon,
-            },
-            coordinateFormat,
-          );
-        } else {
-          row[header] = formatValue(item, key);
-        }
-      });
-      sheets.get(deviceName).push(row);
-    });
-    await exportExcel(t('reportTrips'), 'trips.xlsx', sheets, theme);
-  });
-
-  const onSchedule = useCatch(async (deviceIds, groupIds, report) => {
-    report.type = 'trips';
-    await scheduleReport(deviceIds, groupIds, report);
-    navigate('/reports/scheduled');
-  });
-
-  const navigateToReplay = (item) => {
-    navigate({
-      pathname: '/replay',
-      search: new URLSearchParams({
-        from: item.startTime,
-        to: item.endTime,
-        deviceId: item.deviceId,
-      }).toString(),
-    });
+      const res = await fetch(`/api/reports/trips?deviceId=${deviceId()}&from=${encodeURIComponent(from())}&to=${encodeURIComponent(to())}`);
+      if (res.ok) setTrips(await res.json());
+    } catch (e) {}
+    setLoading(false);
   };
 
-  const formatValue = (item, key) => {
-    const value = item[key];
-    switch (key) {
-      case 'deviceId':
-        return devices[value].name;
-      case 'startTime':
-      case 'endTime':
-        return formatTime(value, 'minutes');
-      case 'startOdometer':
-      case 'endOdometer':
-      case 'distance':
-        return formatDistance(value, distanceUnit, t);
-      case 'averageSpeed':
-      case 'maxSpeed':
-        return value > 0 ? formatSpeed(value, speedUnit, t) : null;
-      case 'duration':
-        return formatNumericHours(value, t);
-      case 'spentFuel':
-        return value > 0 ? formatVolume(value, volumeUnit, t) : null;
-      case 'startAddress':
-        return (
-          <AddressValue
-            latitude={item.startLat}
-            longitude={item.startLon}
-            originalAddress={value}
-          />
-        );
-      case 'endAddress':
-        return (
-          <AddressValue latitude={item.endLat} longitude={item.endLon} originalAddress={value} />
-        );
-      default:
-        return value;
-    }
-  };
+  const deviceList = () => Object.values(devices.items);
 
   return (
-    <PageLayout menu={<ReportsMenu />} breadcrumbs={['reportTitle', 'reportTrips']}>
-      <div className={classes.container}>
-        {selectedItem && (
-          <div className={classes.containerMap}>
-            <MapView>
-              <MapGeofence />
-              {route && (
-                <>
-                  <MapRoutePath positions={route} />
-                  <MapMarkers markers={createMarkers()} />
-                  <MapCamera positions={route} />
-                </>
-              )}
-            </MapView>
-            <MapScale />
-          </div>
-        )}
-        <div className={classes.containerMain}>
-          <div className={classes.header}>
-            <ReportFilter
-              onShow={onShow}
-              onExport={onExport}
-              onSchedule={onSchedule}
-              deviceType="multiple"
-              loading={loading}
-            >
-              <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
-            </ReportFilter>
-          </div>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell className={classes.columnAction} />
-                <TableCell>{t('sharedDevice')}</TableCell>
-                {columns.map((key) => (
-                  <TableCell key={key}>{t(columnsMap.get(key))}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {!loading ? (
-                items.map((item) => (
-                  <TableRow key={item.startPositionId}>
-                    <TableCell className={classes.columnAction} padding="none">
-                      <div className={classes.columnActionContainer}>
-                        {selectedItem === item ? (
-                          <IconButton size="small" onClick={() => setSelectedItem(null)}>
-                            <GpsFixedIcon fontSize="small" />
-                          </IconButton>
-                        ) : (
-                          <IconButton size="small" onClick={() => setSelectedItem(item)}>
-                            <LocationSearchingIcon fontSize="small" />
-                          </IconButton>
-                        )}
-                        <IconButton size="small" onClick={() => navigateToReplay(item)}>
-                          <RouteIcon fontSize="small" />
-                        </IconButton>
-                      </div>
-                    </TableCell>
-                    <TableCell>{devices[item.deviceId].name}</TableCell>
-                    {columns.map((key) => (
-                      <TableCell key={key}>{formatValue(item, key)}</TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableShimmer columns={columns.length + 2} startAction />
-              )}
-            </TableBody>
-          </Table>
-        </div>
+    <div class="h-full flex flex-col p-4">
+      <div class="flex flex-wrap gap-3 mb-4">
+        <select value={deviceId()} onChange={(e) => setDeviceId(e.target.value)} class="input w-48">
+          <option value="">{t('sharedDevice')}</option>
+          <For each={deviceList()}>{(d) => <option value={d.id}>{d.name}</option>}</For>
+        </select>
+        <input type="datetime-local" value={from()} onInput={(e) => setFrom(e.target.value)} class="input" />
+        <input type="datetime-local" value={to()} onInput={(e) => setTo(e.target.value)} class="input" />
+        <button onClick={handleLoad} disabled={!deviceId() || !from() || !to() || loading()} class="btn btn-primary">{loading() ? t('sharedLoading') : t('sharedShow')}</button>
       </div>
-    </PageLayout>
-  );
-};
 
-export default TripReportPage;
+      <div class="flex-1 overflow-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <Show when={trips().length > 0} fallback={<div class="p-8 text-center text-gray-500">{t('sharedNoData')}</div>}>
+          <table class="w-full text-sm">
+            <thead class="bg-gray-50 dark:bg-gray-700 sticky top-0"><tr>
+              <th class="px-4 py-3 text-left">{t('reportStartTime')}</th>
+              <th class="px-4 py-3 text-left">{t('reportEndTime')}</th>
+              <th class="px-4 py-3 text-left">{t('reportDuration')}</th>
+              <th class="px-4 py-3 text-left">{t('reportStartAddress')}</th>
+              <th class="px-4 py-3 text-left">{t('reportEndAddress')}</th>
+            </tr></thead>
+            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+              <For each={trips()}>{(trip) => <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                <td class="px-4 py-3">{formatTime(trip.startTime)}</td>
+                <td class="px-4 py-3">{formatTime(trip.endTime)}</td>
+                <td class="px-4 py-3">{formatDuration(trip.duration)}</td>
+                <td class="px-4 py-3 max-w-xs truncate">{trip.startAddress || '-'}</td>
+                <td class="px-4 py-3 max-w-xs truncate">{trip.endAddress || '-'}</td>
+              </tr>}</For>
+            </tbody>
+          </table>
+        </Show>
+      </div>
+    </div>
+  );
+}

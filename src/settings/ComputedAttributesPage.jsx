@@ -1,89 +1,27 @@
-import { useState } from 'react';
-import { Table, TableRow, TableCell, TableHead, TableBody } from '@mui/material';
-import { useEffectAsync, useScrollToLoad, pageSize } from '../reactHelper';
+import { createSignal, createEffect, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import { useAdministrator } from '../common/util/permissions';
-import PageLayout from '../common/components/PageLayout';
-import SettingsMenu from './components/SettingsMenu';
-import CollectionFab from './components/CollectionFab';
-import CollectionActions from './components/CollectionActions';
-import TableShimmer from '../common/components/TableShimmer';
-import SearchHeader from './components/SearchHeader';
-import useSettingsStyles from './common/useSettingsStyles';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import NavBar from '../common/components/NavBar';
 
-const ComputedAttributesPage = () => {
-  const { classes } = useSettingsStyles();
+export default function ComputedAttributesPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const [items, setItems] = createSignal([]);
 
-  const [timestamp, setTimestamp] = useState(Date.now());
-  const [items, setItems] = useState([]);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const administrator = useAdministrator();
-
-  const loadItems = async (offset) => {
-    setLoading(true);
-    try {
-      const query = new URLSearchParams({ limit: pageSize, offset });
-      if (searchKeyword) {
-        query.append('keyword', searchKeyword);
-      }
-      const response = await fetchOrThrow(`/api/attributes/computed?${query.toString()}`);
-      const data = await response.json();
-      setItems((previous) => (offset ? [...previous, ...data] : data));
-      setHasMore(data.length >= pageSize);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const { sentinelRef, hasMore, setHasMore } = useScrollToLoad(() => loadItems(items.length));
-
-  useEffectAsync(async () => {
-    setItems([]);
-    await loadItems(0);
-  }, [timestamp, searchKeyword]);
+  createEffect(async () => {
+    try { const res = await fetch('/api/attributes/computed'); if (res.ok) setItems(await res.json()); } catch (e) {}
+  });
 
   return (
-    <PageLayout menu={<SettingsMenu />} breadcrumbs={['settingsTitle', 'sharedComputedAttributes']}>
-      <SearchHeader keyword={searchKeyword} setKeyword={setSearchKeyword} />
-      <Table className={classes.table}>
-        <TableHead>
-          <TableRow>
-            <TableCell>{t('sharedDescription')}</TableCell>
-            <TableCell>{t('sharedAttribute')}</TableCell>
-            <TableCell>{t('sharedExpression')}</TableCell>
-            <TableCell>{t('sharedType')}</TableCell>
-            {administrator && <TableCell className={classes.columnAction} />}
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>{item.description}</TableCell>
-              <TableCell>{item.attribute}</TableCell>
-              <TableCell>{item.expression}</TableCell>
-              <TableCell>{item.type}</TableCell>
-              {administrator && (
-                <TableCell className={classes.columnAction} padding="none">
-                  <CollectionActions
-                    itemId={item.id}
-                    editPath="/settings/attribute"
-                    endpoint="attributes/computed"
-                    setTimestamp={setTimestamp}
-                  />
-                </TableCell>
-              )}
-            </TableRow>
-          ))}
-          {loading && <TableShimmer columns={administrator ? 5 : 4} endAction={administrator} />}
-        </TableBody>
-      </Table>
-      {hasMore && <div ref={sentinelRef} />}
-      <CollectionFab editPath="/settings/attribute" disabled={!administrator} />
-    </PageLayout>
+    <div class="max-w-4xl mx-auto">
+      <NavBar title={t('sharedComputedAttributes')} onBack={() => navigate('/')} 
+        actions={<button onClick={() => navigate('/settings/attribute')} class="btn btn-primary"><span class="material-icons mr-2">add</span>{t('sharedAdd')}</button>} />
+      <div class="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <Show when={items().length > 0} fallback={<div class="p-8 text-center text-gray-500">{t('sharedNoData')}</div>}>
+          <table class="w-full"><thead class="bg-gray-50 dark:bg-gray-700"><tr><th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('sharedDescription')}</th><th class="px-4 py-3 text-left">{t('sharedAttribute')}</th><th class="px-4 py-3 text-right">{t('sharedActionType')}</th></tr></thead>
+          <tbody class="divide-y"><For each={items()}>{(item) => <tr class="hover:bg-gray-50 dark:hover:bg-gray-800"><td class="px-4 py-3 font-medium text-gray-900 dark:text-white">{item.description}</td><td class="px-4 py-3 text-gray-600 dark:text-gray-400">{item.attribute}</td><td class="px-4 py-3 text-right"><button onClick={() => navigate(`/settings/attribute/${item.id}`)} class="p-1 text-blue-600 hover:bg-blue-50 rounded"><span class="material-icons">edit</span></button></td></tr>}</For></tbody></table>
+        </Show>
+      </div>
+    </div>
   );
-};
-
-export default ComputedAttributesPage;
+}

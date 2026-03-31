@@ -1,7 +1,8 @@
-export default async (input, init) => {
-  const response = await fetch(input, init);
+export default async function fetchOrThrow(url, options) {
+  const response = await fetch(url, options);
   if (!response.ok) {
-    throw new Error(await response.text());
+    const error = await response.text();
+    throw new Error(error || `HTTP ${response.status}`);
   }
   return response;
-};
+}

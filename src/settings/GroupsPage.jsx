@@ -1,116 +1,84 @@
-import { useState } from 'react';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import { Table, TableRow, TableCell, TableHead, TableBody } from '@mui/material';
-import LinkIcon from '@mui/icons-material/Link';
-import PublishIcon from '@mui/icons-material/Publish';
-import ShareIcon from '@mui/icons-material/Share';
-import { useEffectAsync, useScrollToLoad, pageSize } from '../reactHelper';
+import { createSignal, createEffect, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import PageLayout from '../common/components/PageLayout';
-import SettingsMenu from './components/SettingsMenu';
-import CollectionFab from './components/CollectionFab';
-import CollectionActions from './components/CollectionActions';
-import TableShimmer from '../common/components/TableShimmer';
-import SearchHeader from './components/SearchHeader';
-import { useRestriction } from '../common/util/permissions';
-import useSettingsStyles from './common/useSettingsStyles';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import NavBar from '../common/components/NavBar';
 
-const GroupsPage = () => {
-  const { classes } = useSettingsStyles();
-  const navigate = useNavigate();
+export default function GroupsPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const [groups, setGroups] = createSignal([]);
 
-  const limitCommands = useRestriction('limitCommands');
-  const shareDisabled = useSelector((state) => state.session.server.attributes.disableShare);
-  const user = useSelector((state) => state.session.user);
-
-  const [timestamp, setTimestamp] = useState(Date.now());
-  const [items, setItems] = useState([]);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const loadItems = async (offset) => {
-    setLoading(true);
+  createEffect(async () => {
     try {
-      const query = new URLSearchParams({ limit: pageSize, offset });
-      if (searchKeyword) {
-        query.append('keyword', searchKeyword);
+      const response = await fetch('/api/groups');
+      if (response.ok) {
+        setGroups(await response.json());
       }
-      const response = await fetchOrThrow(`/api/groups?${query.toString()}`);
-      const data = await response.json();
-      setItems((previous) => (offset ? [...previous, ...data] : data));
-      setHasMore(data.length >= pageSize);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Failed to load groups:', error);
     }
-  };
-
-  const { sentinelRef, hasMore, setHasMore } = useScrollToLoad(() => loadItems(items.length));
-
-  useEffectAsync(async () => {
-    setItems([]);
-    await loadItems(0);
-  }, [timestamp, searchKeyword]);
-
-  const actionCommand = {
-    key: 'command',
-    title: t('deviceCommand'),
-    icon: <PublishIcon fontSize="small" />,
-    handler: (groupId) => navigate(`/settings/group/${groupId}/command`),
-  };
-
-  const actionShare = {
-    key: 'share',
-    title: t('sharedShare'),
-    icon: <ShareIcon fontSize="small" />,
-    handler: (groupId) => navigate(`/settings/group/${groupId}/share`),
-  };
-
-  const actionConnections = {
-    key: 'connections',
-    title: t('sharedConnections'),
-    icon: <LinkIcon fontSize="small" />,
-    handler: (groupId) => navigate(`/settings/group/${groupId}/connections`),
-  };
+  });
 
   return (
-    <PageLayout menu={<SettingsMenu />} breadcrumbs={['settingsTitle', 'settingsGroups']}>
-      <SearchHeader keyword={searchKeyword} setKeyword={setSearchKeyword} />
-      <Table className={classes.table}>
-        <TableHead>
-          <TableRow>
-            <TableCell>{t('sharedName')}</TableCell>
-            <TableCell className={classes.columnAction} />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>{item.name}</TableCell>
-              <TableCell className={classes.columnAction} padding="none">
-                <CollectionActions
-                  itemId={item.id}
-                  editPath="/settings/group"
-                  endpoint="groups"
-                  setTimestamp={setTimestamp}
-                  customActions={[
-                    actionConnections,
-                    ...(!limitCommands ? [actionCommand] : []),
-                    ...(!shareDisabled && !user.temporary ? [actionShare] : []),
-                  ]}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-          {loading && <TableShimmer columns={2} endAction />}
-        </TableBody>
-      </Table>
-      {hasMore && <div ref={sentinelRef} />}
-      <CollectionFab editPath="/settings/group" />
-    </PageLayout>
-  );
-};
+    <div class="max-w-4xl mx-auto">
+      <NavBar
+        title={t('settingsGroups')}
+        onBack={() => navigate('/')}
+        actions={
+          <button
+            onClick={() => navigate('/settings/group')}
+            class="btn btn-primary"
+          >
+            <span class="material-icons mr-2">add</span>
+            {t('sharedAdd')}
+          </button>
+        }
+      />
 
-export default GroupsPage;
+      <div class="mt-6 space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+          <Show
+            when={groups().length > 0}
+            fallback={
+              <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+                {t('sharedNoData')}
+              </div>
+            }
+          >
+            <table class="w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sharedName')}
+                  </th>
+                  <th class="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sharedActionType')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                <For each={groups()}>
+                  {(group) => (
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td class="px-4 py-3 font-medium text-gray-900 dark:text-white">
+                        {group.name}
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <button
+                          onClick={() => navigate(`/settings/group/${group.id}`)}
+                          class="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                        >
+                          <span class="material-icons">edit</span>
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </Show>
+        </div>
+      </div>
+    </div>
+  );
+}

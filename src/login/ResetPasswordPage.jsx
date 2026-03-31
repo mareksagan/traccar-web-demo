@@ -1,113 +1,87 @@
-import { useState } from 'react';
-import { Button, TextField, Typography, Snackbar, IconButton } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import LoginLayout from './LoginLayout';
+import { createSignal, createEffect } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import { snackBarDurationShortMs } from '../common/util/duration';
-import { useCatch } from '../reactHelper';
-import BackIcon from '../common/components/BackIcon';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import LoginLayout from './LoginLayout';
 
-const useStyles = makeStyles()((theme) => ({
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing(2),
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: theme.spacing(3),
-    fontWeight: 500,
-    marginLeft: theme.spacing(1),
-    textTransform: 'uppercase',
-  },
-}));
-
-const ResetPasswordPage = () => {
-  const { classes } = useStyles();
+export default function ResetPasswordPage() {
   const navigate = useNavigate();
   const t = useTranslation();
+  
+  const [email, setEmail] = createSignal('');
+  const [submitted, setSubmitted] = createSignal(false);
+  const [error, setError] = createSignal('');
 
-  const [searchParams] = useSearchParams();
-  const token = searchParams.get('passwordReset');
-
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-
-  const handleSubmit = useCatch(async (event) => {
-    event.preventDefault();
-    if (!token) {
-      await fetchOrThrow('/api/password/reset', {
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    try {
+      const response = await fetch('/api/password/reset', {
         method: 'POST',
-        body: new URLSearchParams(`email=${encodeURIComponent(email)}`),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email() }),
       });
-    } else {
-      await fetchOrThrow('/api/password/update', {
-        method: 'POST',
-        body: new URLSearchParams(
-          `token=${encodeURIComponent(token)}&password=${encodeURIComponent(password)}`,
-        ),
-      });
+      
+      if (response.ok) {
+        setSubmitted(true);
+      } else {
+        setError(await response.text());
+      }
+    } catch {
+      setError(t('sharedSomethingWentWrong'));
     }
-    setSnackbarOpen(true);
-  });
+  };
 
   return (
     <LoginLayout>
-      <div className={classes.container}>
-        <div className={classes.header}>
-          <IconButton color="primary" onClick={() => navigate('/login')}>
-            <BackIcon />
-          </IconButton>
-          <Typography className={classes.title} color="primary">
-            {t('loginReset')}
-          </Typography>
+      <h2 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-white">
+        {t('loginReset')}
+      </h2>
+      
+      {submitted() ? (
+        <div class="text-center">
+          <p class="text-green-600 dark:text-green-400 mb-4">
+            {t('loginResetSuccess')}
+          </p>
+          <button
+            onClick={() => navigate('/login')}
+            class="btn btn-primary"
+          >
+            {t('loginLogin')}
+          </button>
         </div>
-        {!token ? (
-          <TextField
-            required
+      ) : (
+        <form onSubmit={handleSubmit} class="space-y-4">
+          <input
             type="email"
-            label={t('userEmail')}
-            name="email"
-            value={email}
-            autoComplete="email"
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        ) : (
-          <TextField
+            value={email()}
+            onInput={(e) => setEmail(e.target.value)}
+            placeholder={t('userEmail')}
             required
-            label={t('userPassword')}
-            name="password"
-            value={password}
-            type="password"
-            autoComplete="current-password"
-            onChange={(event) => setPassword(event.target.value)}
+            class="input"
           />
-        )}
-        <Button
-          variant="contained"
-          color="secondary"
-          type="submit"
-          onClick={handleSubmit}
-          disabled={!/(.+)@(.+)\.(.{2,})/.test(email) && !password}
-          fullWidth
-        >
-          {t('loginReset')}
-        </Button>
-      </div>
-      <Snackbar
-        open={snackbarOpen}
-        onClose={() => navigate('/login')}
-        autoHideDuration={snackBarDurationShortMs}
-        message={!token ? t('loginResetSuccess') : t('loginUpdateSuccess')}
-      />
+          
+          {error() && (
+            <p class="text-red-500 text-sm">{error()}</p>
+          )}
+          
+          <button
+            type="submit"
+            disabled={!email()}
+            class="btn btn-secondary w-full"
+          >
+            {t('loginReset')}
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => navigate('/login')}
+            class="w-full text-blue-600 dark:text-blue-400 hover:underline text-sm"
+          >
+            {t('sharedCancel')}
+          </button>
+        </form>
+      )}
     </LoginLayout>
   );
-};
-
-export default ResetPasswordPage;
+}

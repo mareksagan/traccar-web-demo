@@ -1,217 +1,43 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { useTheme } from '@mui/material/styles';
-import { IconButton, Table, TableBody, TableCell, TableHead, TableRow } from '@mui/material';
-import GpsFixedIcon from '@mui/icons-material/GpsFixed';
-import LocationSearchingIcon from '@mui/icons-material/LocationSearching';
-import {
-  formatAddress,
-  formatDistance,
-  formatVolume,
-  formatTime,
-  formatNumericHours,
-} from '../common/util/formatter';
-import ReportFilter from './components/ReportFilter';
-import { useAttributePreference, usePreference } from '../common/util/preferences';
+import { createSignal, For, Show } from 'solid-js';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import PageLayout from '../common/components/PageLayout';
-import ReportsMenu from './components/ReportsMenu';
-import ColumnSelect from './components/ColumnSelect';
-import usePersistedState from '../common/util/usePersistedState';
-import { useCatch } from '../reactHelper';
-import useReportStyles from './common/useReportStyles';
-import MapPositions from '../map/MapPositions';
-import MapView from '../map/core/MapView';
-import MapCamera from '../map/MapCamera';
-import AddressValue from '../common/components/AddressValue';
-import TableShimmer from '../common/components/TableShimmer';
-import MapGeofence from '../map/MapGeofence';
-import scheduleReport from './common/scheduleReport';
-import MapScale from '../map/MapScale';
-import fetchOrThrow from '../common/util/fetchOrThrow';
-import exportExcel from '../common/util/exportExcel';
-import { deviceEquality } from '../common/util/deviceEquality';
+import { devices } from '../stores';
+import { formatTime, formatDuration } from '../common/util/formatter';
 
-const columnsArray = [
-  ['startTime', 'reportStartTime'],
-  ['startOdometer', 'positionOdometer'],
-  ['address', 'positionAddress'],
-  ['endTime', 'reportEndTime'],
-  ['duration', 'reportDuration'],
-  ['engineHours', 'reportEngineHours'],
-  ['spentFuel', 'reportSpentFuel'],
-];
-const columnsMap = new Map(columnsArray);
-
-const StopReportPage = () => {
-  const navigate = useNavigate();
-  const { classes } = useReportStyles();
+export default function StopReportPage() {
   const t = useTranslation();
-  const theme = useTheme();
+  const [deviceId, setDeviceId] = createSignal('');
+  const [from, setFrom] = createSignal('');
+  const [to, setTo] = createSignal('');
+  const [stops, setStops] = createSignal([]);
+  const [loading, setLoading] = createSignal(false);
 
-  const devices = useSelector((state) => state.devices.items, deviceEquality(['id', 'name']));
-
-  const distanceUnit = useAttributePreference('distanceUnit');
-  const volumeUnit = useAttributePreference('volumeUnit');
-  const coordinateFormat = usePreference('coordinateFormat');
-
-  const [columns, setColumns] = usePersistedState('stopColumns', [
-    'startTime',
-    'endTime',
-    'startOdometer',
-    'address',
-  ]);
-  const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [selectedItem, setSelectedItem] = useState(null);
-
-  const onShow = useCatch(async ({ deviceIds, groupIds, from, to }) => {
-    const query = new URLSearchParams({ from, to });
-    deviceIds.forEach((deviceId) => query.append('deviceId', deviceId));
-    groupIds.forEach((groupId) => query.append('groupId', groupId));
+  const handleLoad = async () => {
+    if (!deviceId() || !from() || !to()) return;
     setLoading(true);
     try {
-      const response = await fetchOrThrow(`/api/reports/stops?${query.toString()}`, {
-        headers: { Accept: 'application/json' },
-      });
-      setItems(await response.json());
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  const onExport = useCatch(async () => {
-    const sheets = new Map();
-    items.forEach((item) => {
-      const deviceName = devices[item.deviceId].name;
-      if (!sheets.has(deviceName)) {
-        sheets.set(deviceName, []);
-      }
-      const row = {};
-      columns.forEach((key) => {
-        const header = t(columnsMap.get(key));
-        if (key === 'address') {
-          row[header] = formatAddress(item, coordinateFormat);
-        } else {
-          row[header] = formatValue(item, key);
-        }
-      });
-      sheets.get(deviceName).push(row);
-    });
-    await exportExcel(t('reportStops'), 'stops.xlsx', sheets, theme);
-  });
-
-  const onSchedule = useCatch(async (deviceIds, groupIds, report) => {
-    report.type = 'stops';
-    await scheduleReport(deviceIds, groupIds, report);
-    navigate('/reports/scheduled');
-  });
-
-  const formatValue = (item, key) => {
-    const value = item[key];
-    switch (key) {
-      case 'deviceId':
-        return devices[value].name;
-      case 'startTime':
-      case 'endTime':
-        return formatTime(value, 'minutes');
-      case 'startOdometer':
-        return formatDistance(value, distanceUnit, t);
-      case 'duration':
-        return formatNumericHours(value, t);
-      case 'engineHours':
-        return value > 0 ? formatNumericHours(value, t) : null;
-      case 'spentFuel':
-        return value > 0 ? formatVolume(value, volumeUnit, t) : null;
-      case 'address':
-        return (
-          <AddressValue
-            latitude={item.latitude}
-            longitude={item.longitude}
-            originalAddress={value}
-          />
-        );
-      default:
-        return value;
-    }
+      const res = await fetch(`/api/reports/stops?deviceId=${deviceId()}&from=${encodeURIComponent(from())}&to=${encodeURIComponent(to())}`);
+      if (res.ok) setStops(await res.json());
+    } catch (e) {}
+    setLoading(false);
   };
 
   return (
-    <PageLayout menu={<ReportsMenu />} breadcrumbs={['reportTitle', 'reportStops']}>
-      <div className={classes.container}>
-        {selectedItem && (
-          <div className={classes.containerMap}>
-            <MapView>
-              <MapGeofence />
-              <MapPositions
-                positions={[
-                  {
-                    deviceId: selectedItem.deviceId,
-                    fixTime: selectedItem.startTime,
-                    latitude: selectedItem.latitude,
-                    longitude: selectedItem.longitude,
-                  },
-                ]}
-                titleField="fixTime"
-              />
-            </MapView>
-            <MapScale />
-            <MapCamera latitude={selectedItem.latitude} longitude={selectedItem.longitude} />
-          </div>
-        )}
-        <div className={classes.containerMain}>
-          <div className={classes.header}>
-            <ReportFilter
-              onShow={onShow}
-              onExport={onExport}
-              onSchedule={onSchedule}
-              deviceType="multiple"
-              loading={loading}
-            >
-              <ColumnSelect columns={columns} setColumns={setColumns} columnsArray={columnsArray} />
-            </ReportFilter>
-          </div>
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell className={classes.columnAction} />
-                <TableCell>{t('sharedDevice')}</TableCell>
-                {columns.map((key) => (
-                  <TableCell key={key}>{t(columnsMap.get(key))}</TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {!loading ? (
-                items.map((item) => (
-                  <TableRow key={item.positionId}>
-                    <TableCell className={classes.columnAction} padding="none">
-                      {selectedItem === item ? (
-                        <IconButton size="small" onClick={() => setSelectedItem(null)}>
-                          <GpsFixedIcon fontSize="small" />
-                        </IconButton>
-                      ) : (
-                        <IconButton size="small" onClick={() => setSelectedItem(item)}>
-                          <LocationSearchingIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                    </TableCell>
-                    <TableCell>{devices[item.deviceId].name}</TableCell>
-                    {columns.map((key) => (
-                      <TableCell key={key}>{formatValue(item, key)}</TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : (
-                <TableShimmer columns={columns.length + 2} startAction />
-              )}
-            </TableBody>
-          </Table>
-        </div>
+    <div class="h-full flex flex-col p-4">
+      <div class="flex flex-wrap gap-3 mb-4">
+        <select value={deviceId()} onChange={(e) => setDeviceId(e.target.value)} class="input w-48">
+          <option value="">{t('sharedDevice')}</option>
+          <For each={Object.values(devices.items)}>{(d) => <option value={d.id}>{d.name}</option>}</For>
+        </select>
+        <input type="datetime-local" value={from()} onInput={(e) => setFrom(e.target.value)} class="input" />
+        <input type="datetime-local" value={to()} onInput={(e) => setTo(e.target.value)} class="input" />
+        <button onClick={handleLoad} disabled={!deviceId() || !from() || !to() || loading()} class="btn btn-primary">{loading() ? t('sharedLoading') : t('sharedShow')}</button>
       </div>
-    </PageLayout>
+      <div class="flex-1 overflow-auto bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <Show when={stops().length > 0} fallback={<div class="p-8 text-center text-gray-500">{t('sharedNoData')}</div>}>
+          <table class="w-full text-sm"><thead class="bg-gray-50 dark:bg-gray-700 sticky top-0"><tr><th class="px-4 py-3 text-left">{t('reportStartTime')}</th><th class="px-4 py-3 text-left">{t('reportEndTime')}</th><th class="px-4 py-3 text-left">{t('reportDuration')}</th><th class="px-4 py-3 text-left">{t('reportSpentFuel')}</th></tr></thead>
+          <tbody class="divide-y"><For each={stops()}>{(stop) => <tr class="hover:bg-gray-50 dark:hover:bg-gray-800"><td class="px-4 py-3">{formatTime(stop.startTime)}</td><td class="px-4 py-3">{formatTime(stop.endTime)}</td><td class="px-4 py-3">{formatDuration(stop.duration)}</td><td class="px-4 py-3">{stop.spentFuel || '-'}</td></tr>}</For></tbody></table>
+        </Show>
+      </div>
+    </div>
   );
-};
-
-export default StopReportPage;
+}

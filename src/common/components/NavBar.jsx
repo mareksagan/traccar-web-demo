@@ -1,17 +1,28 @@
-import { AppBar, Toolbar, Typography, IconButton } from '@mui/material';
-import MenuIcon from '@mui/icons-material/Menu';
+import { useNavigate } from '@solidjs/router';
+import { useTranslation } from './LocalizationProvider';
 
-const Navbar = ({ setOpenDrawer, title }) => (
-  <AppBar position="sticky" color="inherit">
-    <Toolbar>
-      <IconButton color="inherit" edge="start" sx={{ mr: 2 }} onClick={() => setOpenDrawer(true)}>
-        <MenuIcon />
-      </IconButton>
-      <Typography variant="h6" noWrap>
-        {title}
-      </Typography>
-    </Toolbar>
-  </AppBar>
-);
+export default function NavBar(props) {
+  const navigate = useNavigate();
+  const t = useTranslation();
 
-export default Navbar;
+  return (
+    <div class="flex items-center justify-between p-4 bg-white dark:bg-gray-800 shadow-md">
+      <div class="flex items-center gap-4">
+        {props.onBack && (
+          <button
+            onClick={props.onBack}
+            class="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <span class="material-icons">arrow_back</span>
+          </button>
+        )}
+        <h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+          {props.title}
+        </h1>
+      </div>
+      <div class="flex items-center gap-2">
+        {props.actions}
+      </div>
+    </div>
+  );
+}

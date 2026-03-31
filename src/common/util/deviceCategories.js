@@ -1,22 +1,26 @@
-export default [
+export const deviceCategories = [
   'default',
-  'animal',
-  'bicycle',
-  'boat',
-  'bus',
   'car',
-  'camper',
-  'crane',
-  'helicopter',
-  'motorcycle',
-  'person',
-  'plane',
-  'ship',
-  'tractor',
-  'trailer',
-  'train',
-  'tram',
+  'suv',
   'truck',
-  'van',
+  'motorcycle',
+  'bicycle',
+  'bus',
+  'train',
+  'boat',
+  'ship',
+  'plane',
+  'helicopter',
+  'person',
+  'animal',
   'scooter',
+  'van',
+  'camper',
+  'tractor',
+  'crane',
+  'trailer',
 ];
+
+export const getCategoryIcon = (category) => {
+  return `/images/icon/${category || 'default'}.svg`;
+};

@@ -1,51 +1,27 @@
-import { useEffect, useState } from 'react';
-import { useDispatch } from 'react-redux';
-import { makeStyles } from 'tss-react/mui';
-import { List } from 'react-window';
-import { devicesActions } from '../store';
-import { useEffectAsync } from '../reactHelper';
+import { For, Show, createSignal, createEffect } from 'solid-js';
+import { devices } from '../stores';
+import { useTranslation } from '../common/components/LocalizationProvider';
 import DeviceRow from './DeviceRow';
-import fetchOrThrow from '../common/util/fetchOrThrow';
 
-const useStyles = makeStyles()((theme) => ({
-  list: {
-    height: '100%',
-    direction: theme.direction,
-  },
-  listInner: {
-    position: 'relative',
-    margin: theme.spacing(1.5, 0),
-  },
-}));
-
-const DeviceList = ({ devices }) => {
-  const { classes } = useStyles();
-  const dispatch = useDispatch();
-
-  const [, setTime] = useState(Date.now());
-
-  useEffect(() => {
-    const interval = setInterval(() => setTime(Date.now()), 60000);
-    return () => {
-      clearInterval(interval);
-    };
-  }, []);
-
-  useEffectAsync(async () => {
-    const response = await fetchOrThrow('/api/devices');
-    dispatch(devicesActions.refresh(await response.json()));
-  }, []);
-
+export default function DeviceList(props) {
+  const t = useTranslation();
+  
   return (
-    <List
-      className={classes.list}
-      rowComponent={DeviceRow}
-      rowCount={devices.length}
-      rowHeight={72}
-      rowProps={{ devices }}
-      overscanCount={5}
-    />
+    <div class="flex flex-col h-full bg-white dark:bg-gray-800 overflow-hidden">
+      <div class="flex-1 overflow-y-auto">
+        <Show
+          when={props.devices?.length > 0}
+          fallback={
+            <div class="flex items-center justify-center h-32 text-gray-500 dark:text-gray-400">
+              {t('sharedNoData')}
+            </div>
+          }
+        >
+          <For each={props.devices}>
+            {(device) => <DeviceRow device={device} />}
+          </For>
+        </Show>
+      </div>
+    </div>
   );
-};
-
-export default DeviceList;
+}

@@ -1,191 +1,166 @@
-import { useState } from 'react';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import {
-  Table,
-  TableRow,
-  TableCell,
-  TableHead,
-  TableBody,
-  Button,
-  TableFooter,
-  FormControlLabel,
-  Switch,
-} from '@mui/material';
-import LinkIcon from '@mui/icons-material/Link';
-import { useTheme } from '@mui/material/styles';
-import { useEffectAsync, useScrollToLoad, pageSize } from '../reactHelper';
+import { createSignal, createEffect, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
+import { devices, devicesActions } from '../stores';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import PageLayout from '../common/components/PageLayout';
-import SettingsMenu from './components/SettingsMenu';
-import CollectionFab from './components/CollectionFab';
-import CollectionActions from './components/CollectionActions';
-import TableShimmer from '../common/components/TableShimmer';
-import SearchHeader from './components/SearchHeader';
-import { formatAddress, formatStatus, formatTime } from '../common/util/formatter';
-import { useDeviceReadonly, useManager } from '../common/util/permissions';
-import { usePreference } from '../common/util/preferences';
-import useSettingsStyles from './common/useSettingsStyles';
-import DeviceUsersValue from './components/DeviceUsersValue';
-import usePersistedState from '../common/util/usePersistedState';
-import fetchOrThrow from '../common/util/fetchOrThrow';
-import AddressValue from '../common/components/AddressValue';
-import exportExcel from '../common/util/exportExcel';
+import NavBar from '../common/components/NavBar';
+import RemoveDialog from '../common/components/RemoveDialog';
 
-const DevicesPage = () => {
-  const { classes } = useSettingsStyles();
-  const theme = useTheme();
-  const navigate = useNavigate();
+export default function DevicesPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const [search, setSearch] = createSignal('');
+  const [deleteId, setDeleteId] = createSignal(null);
 
-  const groups = useSelector((state) => state.groups.items);
-
-  const manager = useManager();
-  const deviceReadonly = useDeviceReadonly();
-  const coordinateFormat = usePreference('coordinateFormat');
-
-  const positions = useSelector((state) => state.session.positions);
-
-  const [timestamp, setTimestamp] = useState(Date.now());
-  const [items, setItems] = useState([]);
-  const [searchKeyword, setSearchKeyword] = useState('');
-  const [showAll, setShowAll] = usePersistedState('showAllDevices', false);
-  const [loading, setLoading] = useState(false);
-
-  const loadItems = async (offset) => {
-    setLoading(true);
+  createEffect(async () => {
     try {
-      const query = new URLSearchParams({ all: showAll, limit: pageSize, offset });
-      if (searchKeyword) {
-        query.append('keyword', searchKeyword);
+      const response = await fetch('/api/devices');
+      if (response.ok) {
+        devicesActions.refresh(await response.json());
       }
-      const response = await fetchOrThrow(`/api/devices?${query.toString()}`);
-      const data = await response.json();
-      setItems((previous) => (offset ? [...previous, ...data] : data));
-      setHasMore(data.length >= pageSize);
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Failed to load devices:', error);
     }
+  });
+
+  const filteredDevices = () => {
+    const allDevices = Object.values(devices.items);
+    if (!search()) return allDevices;
+    const lowerSearch = search().toLowerCase();
+    return allDevices.filter((d) =>
+      d.name.toLowerCase().includes(lowerSearch) ||
+      d.uniqueId.toLowerCase().includes(lowerSearch)
+    );
   };
 
-  const { sentinelRef, hasMore, setHasMore } = useScrollToLoad(() => loadItems(items.length));
-
-  useEffectAsync(async () => {
-    setItems([]);
-    await loadItems(0);
-  }, [timestamp, showAll, searchKeyword]);
-
-  const handleExport = async () => {
-    const data = items.map((item) => ({
-      [t('sharedName')]: item.name,
-      [t('deviceIdentifier')]: item.uniqueId,
-      [t('groupParent')]: item.groupId ? groups[item.groupId]?.name : null,
-      [t('sharedPhone')]: item.phone,
-      [t('deviceModel')]: item.model,
-      [t('deviceContact')]: item.contact,
-      [t('userExpirationTime')]: formatTime(item.expirationTime, 'date'),
-      [t('deviceStatus')]: formatStatus(item.status, t),
-      [t('deviceLastUpdate')]: formatTime(item.lastUpdate, 'minutes'),
-      [t('positionAddress')]: positions[item.id]
-        ? formatAddress(positions[item.id], coordinateFormat)
-        : '',
-    }));
-    const sheets = new Map();
-    sheets.set(t('deviceTitle'), data);
-    await exportExcel(t('deviceTitle'), 'devices.xlsx', sheets, theme);
-  };
-
-  const actionConnections = {
-    key: 'connections',
-    title: t('sharedConnections'),
-    icon: <LinkIcon fontSize="small" />,
-    handler: (deviceId) => navigate(`/settings/device/${deviceId}/connections`),
+  const handleDelete = async () => {
+    if (!deleteId()) return;
+    try {
+      const response = await fetch(`/api/devices/${deleteId()}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        devicesActions.remove(deleteId());
+      }
+    } catch (error) {
+      console.error('Failed to delete device:', error);
+    }
+    setDeleteId(null);
   };
 
   return (
-    <PageLayout menu={<SettingsMenu />} breadcrumbs={['settingsTitle', 'deviceTitle']}>
-      <SearchHeader keyword={searchKeyword} setKeyword={setSearchKeyword} />
-      <Table className={classes.table}>
-        <TableHead>
-          <TableRow>
-            <TableCell>{t('sharedName')}</TableCell>
-            <TableCell>{t('deviceIdentifier')}</TableCell>
-            <TableCell>{t('groupParent')}</TableCell>
-            <TableCell>{t('sharedPhone')}</TableCell>
-            <TableCell>{t('deviceModel')}</TableCell>
-            <TableCell>{t('deviceContact')}</TableCell>
-            <TableCell>{t('userExpirationTime')}</TableCell>
-            <TableCell>{t('positionAddress')}</TableCell>
-            {manager && <TableCell>{t('settingsUsers')}</TableCell>}
-            <TableCell className={classes.columnAction} />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow key={item.id}>
-              <TableCell>{item.name}</TableCell>
-              <TableCell>{item.uniqueId}</TableCell>
-              <TableCell>{item.groupId ? groups[item.groupId]?.name : null}</TableCell>
-              <TableCell>{item.phone}</TableCell>
-              <TableCell>{item.model}</TableCell>
-              <TableCell>{item.contact}</TableCell>
-              <TableCell>{formatTime(item.expirationTime, 'date')}</TableCell>
-              <TableCell>
-                {positions[item.id] && (
-                  <AddressValue
-                    latitude={positions[item.id].latitude}
-                    longitude={positions[item.id].longitude}
-                    originalAddress={positions[item.id]?.address}
-                  />
-                )}
-              </TableCell>
-              {manager && (
-                <TableCell>
-                  <DeviceUsersValue deviceId={item.id} />
-                </TableCell>
-              )}
-              <TableCell className={classes.columnAction} padding="none">
-                <CollectionActions
-                  itemId={item.id}
-                  editPath="/settings/device"
-                  endpoint="devices"
-                  setTimestamp={setTimestamp}
-                  customActions={[actionConnections]}
-                  readonly={deviceReadonly}
-                />
-              </TableCell>
-            </TableRow>
-          ))}
-          {loading && <TableShimmer columns={manager ? 9 : 8} endAction />}
-        </TableBody>
-        <TableFooter>
-          <TableRow>
-            <TableCell>
-              <Button onClick={handleExport} variant="text">
-                {t('reportExport')}
-              </Button>
-            </TableCell>
-            <TableCell colSpan={manager ? 9 : 8} align="right">
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={showAll}
-                    onChange={(e) => setShowAll(e.target.checked)}
-                    size="small"
-                  />
-                }
-                label={t('notificationAlways')}
-                labelPlacement="start"
-                disabled={!manager}
-              />
-            </TableCell>
-          </TableRow>
-        </TableFooter>
-      </Table>
-      {hasMore && <div ref={sentinelRef} />}
-      <CollectionFab editPath="/settings/device" />
-    </PageLayout>
-  );
-};
+    <div class="max-w-4xl mx-auto">
+      <NavBar
+        title={t('deviceTitle')}
+        onBack={() => navigate('/')}
+        actions={
+          <button
+            onClick={() => navigate('/settings/device')}
+            class="btn btn-primary"
+          >
+            <span class="material-icons mr-2">add</span>
+            {t('sharedAdd')}
+          </button>
+        }
+      />
 
-export default DevicesPage;
+      <div class="mt-6 space-y-4">
+        <div class="relative">
+          <input
+            type="text"
+            value={search()}
+            onInput={(e) => setSearch(e.target.value)}
+            placeholder={t('sharedSearch')}
+            class="input w-full pr-10"
+          />
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons text-gray-400">
+            search
+          </span>
+        </div>
+
+        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+          <Show
+            when={filteredDevices().length > 0}
+            fallback={
+              <div class="p-8 text-center text-gray-500 dark:text-gray-400">
+                {t('sharedNoData')}
+              </div>
+            }
+          >
+            <table class="w-full">
+              <thead class="bg-gray-50 dark:bg-gray-700">
+                <tr>
+                  <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sharedName')}
+                  </th>
+                  <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('deviceIdentifier')}
+                  </th>
+                  <th class="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sharedStatus')}
+                  </th>
+                  <th class="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t('sharedActionType')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                <For each={filteredDevices()}>
+                  {(device) => (
+                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <td class="px-4 py-3">
+                        <div class="flex items-center gap-2">
+                          <img
+                            src={`/images/icon/${device.category || 'default'}.svg`}
+                            alt=""
+                            class="w-6 h-6"
+                          />
+                          <span class="font-medium text-gray-900 dark:text-white">
+                            {device.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                        {device.uniqueId}
+                      </td>
+                      <td class="px-4 py-3">
+                        <span class={`inline-flex px-2 py-1 text-xs rounded-full ${
+                          device.status === 'online'
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                            : device.status === 'offline'
+                            ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                        }`}>
+                          {t(`deviceStatus${device.status.charAt(0).toUpperCase() + device.status.slice(1)}`)}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <button
+                          onClick={() => navigate(`/settings/device/${device.id}`)}
+                          class="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded"
+                        >
+                          <span class="material-icons">edit</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteId(device.id)}
+                          class="p-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded ml-1"
+                        >
+                          <span class="material-icons">delete</span>
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </For>
+              </tbody>
+            </table>
+          </Show>
+        </div>
+      </div>
+
+      <RemoveDialog
+        open={deleteId() !== null}
+        onCancel={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+}

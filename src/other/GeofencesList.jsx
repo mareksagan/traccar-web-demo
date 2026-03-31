@@ -1,54 +1,35 @@
-import { Fragment } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { makeStyles } from 'tss-react/mui';
-import { Divider, List, ListItemButton, ListItemText } from '@mui/material';
+import { createSignal, createEffect, For, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
+import { useTranslation } from '../common/components/LocalizationProvider';
+import NavBar from '../common/components/NavBar';
 
-import { geofencesActions } from '../store';
-import CollectionActions from '../settings/components/CollectionActions';
-import { useCatchCallback } from '../reactHelper';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+export default function GeofencesListPage() {
+  const t = useTranslation();
+  const navigate = useNavigate();
+  const [geofences, setGeofences] = createSignal([]);
 
-const useStyles = makeStyles()(() => ({
-  list: {
-    flexGrow: 1,
-    overflow: 'auto',
-  },
-  icon: {
-    width: '25px',
-    height: '25px',
-    filter: 'brightness(0) invert(1)',
-  },
-}));
-
-const GeofencesList = ({ onGeofenceSelected }) => {
-  const { classes } = useStyles();
-  const dispatch = useDispatch();
-
-  const items = useSelector((state) => state.geofences.items);
-
-  const refreshGeofences = useCatchCallback(async () => {
-    const response = await fetchOrThrow('/api/geofences');
-    dispatch(geofencesActions.refresh(await response.json()));
-  }, [dispatch]);
+  createEffect(async () => {
+    try {
+      const res = await fetch('/api/geofences');
+      if (res.ok) setGeofences(await res.json());
+    } catch (e) {}
+  });
 
   return (
-    <List className={classes.list}>
-      {Object.values(items).map((item, index, list) => (
-        <Fragment key={item.id}>
-          <ListItemButton key={item.id} onClick={() => onGeofenceSelected(item.id)}>
-            <ListItemText primary={item.name} />
-            <CollectionActions
-              itemId={item.id}
-              editPath="/settings/geofence"
-              endpoint="geofences"
-              setTimestamp={refreshGeofences}
-            />
-          </ListItemButton>
-          {index < list.length - 1 ? <Divider /> : null}
-        </Fragment>
-      ))}
-    </List>
+    <div class="h-full flex flex-col">
+      <NavBar title={t('sharedGeofences')} onBack={() => navigate('/')} />
+      <div class="flex-1 overflow-auto p-4">
+        <Show when={geofences().length > 0} fallback={<div class="text-center text-gray-500 py-8">{t('sharedNoData')}</div>}>
+          <div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            <For each={geofences()}>{(g) => (
+              <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4">
+                <h3 class="font-medium text-gray-900 dark:text-white">{g.name}</h3>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1 truncate">{g.area}</p>
+              </div>
+            )}</For>
+          </div>
+        </Show>
+      </div>
+    </div>
   );
-};
-
-export default GeofencesList;
+}

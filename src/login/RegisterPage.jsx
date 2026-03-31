@@ -1,139 +1,111 @@
-import { useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { Button, TextField, Typography, Snackbar, IconButton } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import { useNavigate } from 'react-router-dom';
-import LoginLayout from './LoginLayout';
+import { createSignal, createEffect } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
+import { sessionActions } from '../stores';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import { snackBarDurationShortMs } from '../common/util/duration';
-import { useCatch, useEffectAsync } from '../reactHelper';
-import { sessionActions } from '../store';
-import BackIcon from '../common/components/BackIcon';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import LoginLayout from './LoginLayout';
 
-const useStyles = makeStyles()((theme) => ({
-  container: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: theme.spacing(2),
-  },
-  header: {
-    display: 'flex',
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: theme.spacing(3),
-    fontWeight: 500,
-    marginLeft: theme.spacing(1),
-    textTransform: 'uppercase',
-  },
-}));
-
-const RegisterPage = () => {
-  const { classes } = useStyles();
-  const dispatch = useDispatch();
+export default function RegisterPage() {
   const navigate = useNavigate();
   const t = useTranslation();
+  
+  const [name, setName] = createSignal('');
+  const [email, setEmail] = createSignal('');
+  const [password, setPassword] = createSignal('');
+  const [error, setError] = createSignal('');
+  const [server, setServer] = createSignal(null);
 
-  const server = useSelector((state) => state.session.server);
-  const totpForce = useSelector((state) => state.session.server.attributes.totpForce);
-
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [totpKey, setTotpKey] = useState(null);
-  const [snackbarOpen, setSnackbarOpen] = useState(false);
-
-  useEffectAsync(async () => {
-    if (totpForce) {
-      const response = await fetchOrThrow('/api/users/totp', { method: 'POST' });
-      setTotpKey(await response.text());
+  createEffect(async () => {
+    try {
+      const response = await fetch('/api/server');
+      if (response.ok) {
+        const data = await response.json();
+        setServer(data);
+        if (!data.registration) {
+          navigate('/login');
+        }
+      }
+    } catch {
+      // ignore
     }
-  }, [totpForce, setTotpKey]);
-
-  const handleSubmit = useCatch(async (event) => {
-    event.preventDefault();
-    await fetchOrThrow('/api/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, totpKey }),
-    });
-    setSnackbarOpen(true);
   });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    
+    try {
+      const response = await fetch('/api/users', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name(),
+          email: email(),
+          password: password(),
+        }),
+      });
+      
+      if (response.ok) {
+        navigate('/login');
+      } else {
+        setError(await response.text());
+      }
+    } catch {
+      setError(t('sharedSomethingWentWrong'));
+    }
+  };
 
   return (
     <LoginLayout>
-      <div className={classes.container}>
-        <div className={classes.header}>
-          {!server.newServer && (
-            <IconButton color="primary" onClick={() => navigate('/login')}>
-              <BackIcon />
-            </IconButton>
-          )}
-          <Typography className={classes.title} color="primary">
-            {t('loginRegister')}
-          </Typography>
-        </div>
-        <TextField
+      <h2 class="text-2xl font-semibold text-center mb-6 text-gray-900 dark:text-white">
+        {t('loginRegister')}
+      </h2>
+      
+      <form onSubmit={handleSubmit} class="space-y-4">
+        <input
+          type="text"
+          value={name()}
+          onInput={(e) => setName(e.target.value)}
+          placeholder={t('sharedName')}
           required
-          label={t('sharedName')}
-          name="name"
-          value={name}
-          autoComplete="name"
-          autoFocus
-          onChange={(event) => setName(event.target.value)}
+          class="input"
         />
-        <TextField
-          required
+        <input
           type="email"
-          label={t('userEmail')}
-          name="email"
-          value={email}
-          autoComplete="email"
-          onChange={(event) => setEmail(event.target.value)}
-        />
-        <TextField
+          value={email()}
+          onInput={(e) => setEmail(e.target.value)}
+          placeholder={t('userEmail')}
           required
-          label={t('userPassword')}
-          name="password"
-          value={password}
-          type="password"
-          autoComplete="current-password"
-          onChange={(event) => setPassword(event.target.value)}
+          class="input"
         />
-        {totpForce && (
-          <TextField
-            required
-            label={t('loginTotpKey')}
-            name="totpKey"
-            value={totpKey || ''}
-            InputProps={{
-              readOnly: true,
-            }}
-          />
+        <input
+          type="password"
+          value={password()}
+          onInput={(e) => setPassword(e.target.value)}
+          placeholder={t('userPassword')}
+          required
+          class="input"
+        />
+        
+        {error() && (
+          <p class="text-red-500 text-sm">{error()}</p>
         )}
-        <Button
-          variant="contained"
-          color="secondary"
-          onClick={handleSubmit}
+        
+        <button
           type="submit"
-          disabled={!name || !password || !(server.newServer || /(.+)@(.+)\.(.{2,})/.test(email))}
-          fullWidth
+          disabled={!name() || !email() || !password()}
+          class="btn btn-secondary w-full"
         >
           {t('loginRegister')}
-        </Button>
-      </div>
-      <Snackbar
-        open={snackbarOpen}
-        onClose={() => {
-          dispatch(sessionActions.updateServer({ ...server, newServer: false }));
-          navigate('/login');
-        }}
-        autoHideDuration={snackBarDurationShortMs}
-        message={t('loginCreated')}
-      />
+        </button>
+        
+        <button
+          type="button"
+          onClick={() => navigate('/login')}
+          class="w-full text-blue-600 dark:text-blue-400 hover:underline text-sm"
+        >
+          {t('sharedCancel')}
+        </button>
+      </form>
     </LoginLayout>
   );
-};
-
-export default RegisterPage;
+}

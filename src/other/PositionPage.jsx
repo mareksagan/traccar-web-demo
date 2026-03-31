@@ -1,127 +1,47 @@
-import { useState } from 'react';
-import { useSelector } from 'react-redux';
-
-import {
-  Typography,
-  Container,
-  Paper,
-  AppBar,
-  Toolbar,
-  IconButton,
-  Table,
-  TableHead,
-  TableRow,
-  TableCell,
-  TableBody,
-} from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useEffectAsync } from '../reactHelper';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import PositionValue from '../common/components/PositionValue';
-import usePositionAttributes from '../common/attributes/usePositionAttributes';
-import BackIcon from '../common/components/BackIcon';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import { formatTime, formatSpeed, formatCoordinate, formatAltitude } from '../common/util/formatter';
+import MapView from '../map/core/MapView';
+import NavBar from '../common/components/NavBar';
 
-const useStyles = makeStyles()((theme) => ({
-  root: {
-    height: '100%',
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  content: {
-    overflow: 'auto',
-    paddingTop: theme.spacing(2),
-    paddingBottom: theme.spacing(2),
-  },
-}));
-
-const PositionPage = () => {
-  const { classes } = useStyles();
-  const navigate = useNavigate();
+export default function PositionPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  const [position, setPosition] = createSignal(null);
 
-  const positionAttributes = usePositionAttributes(t);
-
-  const { id } = useParams();
-
-  const [item, setItem] = useState();
-
-  useEffectAsync(async () => {
-    if (id) {
-      const response = await fetchOrThrow(`/api/positions?id=${id}`);
-      const positions = await response.json();
-      if (positions.length > 0) {
-        setItem(positions[0]);
-      }
+  createEffect(async () => {
+    if (params.id) {
+      try {
+        const res = await fetch(`/api/positions?id=${params.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setPosition(data[0]);
+        }
+      } catch (e) {}
     }
-  }, [id]);
-
-  const deviceName = useSelector((state) => {
-    if (item) {
-      const device = state.devices.items[item.deviceId];
-      if (device) {
-        return device.name;
-      }
-    }
-    return null;
   });
 
   return (
-    <div className={classes.root}>
-      <AppBar position="sticky" color="inherit">
-        <Toolbar>
-          <IconButton color="inherit" edge="start" sx={{ mr: 2 }} onClick={() => navigate(-1)}>
-            <BackIcon />
-          </IconButton>
-          <Typography variant="h6">{deviceName}</Typography>
-        </Toolbar>
-      </AppBar>
-      <div className={classes.content}>
-        <Container maxWidth="sm">
-          <Paper>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>{t('stateName')}</TableCell>
-                  <TableCell>{t('sharedName')}</TableCell>
-                  <TableCell>{t('stateValue')}</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {item &&
-                  Object.getOwnPropertyNames(item)
-                    .filter((it) => it !== 'attributes')
-                    .map((property) => (
-                      <TableRow key={property}>
-                        <TableCell>{property}</TableCell>
-                        <TableCell>
-                          <strong>{positionAttributes[property]?.name}</strong>
-                        </TableCell>
-                        <TableCell>
-                          <PositionValue position={item} property={property} />
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                {item &&
-                  Object.getOwnPropertyNames(item.attributes).map((attribute) => (
-                    <TableRow key={attribute}>
-                      <TableCell>{attribute}</TableCell>
-                      <TableCell>
-                        <strong>{positionAttributes[attribute]?.name}</strong>
-                      </TableCell>
-                      <TableCell>
-                        <PositionValue position={item} attribute={attribute} />
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        </Container>
-      </div>
+    <div class="h-full flex flex-col">
+      <NavBar title={t('positionPosition')} onBack={() => navigate('/')} />
+      <Show when={position()} fallback={<div class="flex-1 flex items-center justify-center">{t('sharedLoading')}</div>}>
+        <div class="flex-1 flex flex-col md:flex-row overflow-hidden">
+          <div class="flex-1 relative"><MapView center={[position().longitude, position().latitude]} zoom={16} /></div>
+          <div class="h-auto md:h-auto md:w-80 bg-white dark:bg-gray-800 overflow-y-auto border-t md:border-t-0 md:border-l border-gray-200 dark:border-gray-700 p-4">
+            <div class="space-y-3 text-sm">
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionFixTime')}</span><span class="text-gray-900 dark:text-white">{formatTime(position().fixTime)}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionLatitude')}</span><span class="text-gray-900 dark:text-white">{formatCoordinate(position().latitude, true)}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionLongitude')}</span><span class="text-gray-900 dark:text-white">{formatCoordinate(position().longitude, false)}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionSpeed')}</span><span class="text-gray-900 dark:text-white">{formatSpeed(position().speed, 'kmh')}</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionCourse')}</span><span class="text-gray-900 dark:text-white">{position().course}°</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionAltitude')}</span><span class="text-gray-900 dark:text-white">{position().altitude} m</span></div>
+              <div class="flex justify-between"><span class="text-gray-500">{t('positionAddress')}</span><span class="text-gray-900 dark:text-white text-right max-w-[150px]">{position().address || '-'}</span></div>
+            </div>
+          </div>
+        </div>
+      </Show>
     </div>
   );
-};
-
-export default PositionPage;
+}

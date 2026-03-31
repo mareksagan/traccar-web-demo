@@ -1,188 +1,173 @@
-import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  FormControlLabel,
-  Checkbox,
-  TextField,
-  Button,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { MuiFileInput } from 'mui-file-input';
-import EditItemView from './components/EditItemView';
-import EditAttributesAccordion from './components/EditAttributesAccordion';
-import SelectField from '../common/components/SelectField';
-import deviceCategories from '../common/util/deviceCategories';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import useDeviceAttributes from '../common/attributes/useDeviceAttributes';
-import { useAdministrator } from '../common/util/permissions';
-import SettingsMenu from './components/SettingsMenu';
-import useCommonDeviceAttributes from '../common/attributes/useCommonDeviceAttributes';
-import { useCatch } from '../reactHelper';
-import useSettingsStyles from './common/useSettingsStyles';
-import QrCodeDialog from '../common/components/QrCodeDialog';
-import fetchOrThrow from '../common/util/fetchOrThrow';
+import { deviceCategories } from '../common/util/deviceCategories';
+import NavBar from '../common/components/NavBar';
 
-const DevicePage = () => {
-  const { classes } = useSettingsStyles();
+export default function DevicePage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  
+  const [device, setDevice] = createSignal({
+    name: '',
+    uniqueId: '',
+    category: 'default',
+    phone: '',
+    model: '',
+    contact: '',
+    attributes: {},
+  });
+  const [loading, setLoading] = createSignal(false);
 
-  const admin = useAdministrator();
-
-  const commonDeviceAttributes = useCommonDeviceAttributes(t);
-  const deviceAttributes = useDeviceAttributes(t);
-
-  const [searchParams] = useSearchParams();
-  const uniqueId = searchParams.get('uniqueId');
-
-  const [item, setItem] = useState(uniqueId ? { uniqueId } : null);
-  const [showQr, setShowQr] = useState(false);
-  const [imageFile, setImageFile] = useState(null);
-
-  const handleFileInput = useCatch(async (newFile) => {
-    setImageFile(newFile);
-    if (newFile && item?.id) {
-      const response = await fetchOrThrow(`/api/devices/${item.id}/image`, {
-        method: 'POST',
-        body: newFile,
-      });
-      setItem({ ...item, attributes: { ...item.attributes, deviceImage: await response.text() } });
-    } else if (!newFile) {
-      // eslint-disable-next-line no-unused-vars
-      const { deviceImage, ...remainingAttributes } = item.attributes || {};
-      setItem({ ...item, attributes: remainingAttributes });
+  createEffect(async () => {
+    if (params.id) {
+      try {
+        const response = await fetch(`/api/devices/${params.id}`);
+        if (response.ok) {
+          setDevice(await response.json());
+        }
+      } catch (error) {
+        console.error('Failed to load device:', error);
+      }
     }
   });
 
-  const validate = () => item && item.name && item.uniqueId;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      const url = params.id ? `/api/devices/${params.id}` : '/api/devices';
+      const method = params.id ? 'PUT' : 'POST';
+      
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(device()),
+      });
+      
+      if (response.ok) {
+        navigate('/settings/devices');
+      }
+    } catch (error) {
+      console.error('Failed to save device:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateField = (field, value) => {
+    setDevice((prev) => ({ ...prev, [field]: value }));
+  };
 
   return (
-    <EditItemView
-      endpoint="devices"
-      item={item}
-      setItem={setItem}
-      validate={validate}
-      menu={<SettingsMenu />}
-      breadcrumbs={['settingsTitle', 'sharedDevice']}
-    >
-      {item && (
-        <>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedRequired')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <TextField
-                value={item.name || ''}
-                onChange={(event) => setItem({ ...item, name: event.target.value })}
-                label={t('sharedName')}
-              />
-              <TextField
-                value={item.uniqueId || ''}
-                onChange={(event) => setItem({ ...item, uniqueId: event.target.value })}
-                label={t('deviceIdentifier')}
-                helperText={t('deviceIdentifierHelp')}
-                disabled={Boolean(uniqueId)}
-              />
-            </AccordionDetails>
-          </Accordion>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedExtra')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <SelectField
-                value={item.groupId}
-                onChange={(event) => setItem({ ...item, groupId: Number(event.target.value) })}
-                endpoint="/api/groups"
-                label={t('groupParent')}
-              />
-              <TextField
-                value={item.phone || ''}
-                onChange={(event) => setItem({ ...item, phone: event.target.value })}
-                label={t('sharedPhone')}
-              />
-              <TextField
-                value={item.model || ''}
-                onChange={(event) => setItem({ ...item, model: event.target.value })}
-                label={t('deviceModel')}
-              />
-              <TextField
-                value={item.contact || ''}
-                onChange={(event) => setItem({ ...item, contact: event.target.value })}
-                label={t('deviceContact')}
-              />
-              <SelectField
-                value={item.category || 'default'}
-                onChange={(event) => setItem({ ...item, category: event.target.value })}
-                data={deviceCategories
-                  .map((category) => ({
-                    id: category,
-                    name: t(`category${category.replace(/^\w/, (c) => c.toUpperCase())}`),
-                  }))
-                  .sort((a, b) => a.name.localeCompare(b.name))}
-                label={t('deviceCategory')}
-              />
-              <SelectField
-                value={item.calendarId}
-                onChange={(event) => setItem({ ...item, calendarId: Number(event.target.value) })}
-                endpoint="/api/calendars"
-                label={t('sharedCalendar')}
-              />
-              <TextField
-                label={t('userExpirationTime')}
-                type="date"
-                value={item.expirationTime ? item.expirationTime.split('T')[0] : '2099-01-01'}
-                onChange={(e) => {
-                  if (e.target.value) {
-                    setItem({ ...item, expirationTime: new Date(e.target.value).toISOString() });
-                  }
-                }}
-                disabled={!admin}
-              />
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={item.disabled}
-                    onChange={(event) => setItem({ ...item, disabled: event.target.checked })}
-                  />
-                }
-                label={t('sharedDisabled')}
-                disabled={!admin}
-              />
-              <Button variant="outlined" color="primary" onClick={() => setShowQr(true)}>
-                {t('sharedQrCode')}
-              </Button>
-            </AccordionDetails>
-          </Accordion>
-          {item.id && (
-            <Accordion>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="subtitle1">{t('attributeDeviceImage')}</Typography>
-              </AccordionSummary>
-              <AccordionDetails className={classes.details}>
-                <MuiFileInput
-                  placeholder={t('attributeDeviceImage')}
-                  value={imageFile}
-                  onChange={handleFileInput}
-                  inputProps={{ accept: 'image/*' }}
-                />
-              </AccordionDetails>
-            </Accordion>
-          )}
-          <EditAttributesAccordion
-            attributes={item.attributes}
-            setAttributes={(attributes) => setItem({ ...item, attributes })}
-            definitions={{ ...commonDeviceAttributes, ...deviceAttributes }}
-          />
-        </>
-      )}
-      <QrCodeDialog open={showQr} onClose={() => setShowQr(false)} />
-    </EditItemView>
-  );
-};
+    <div class="max-w-2xl mx-auto">
+      <NavBar
+        title={params.id ? t('sharedDevice') : t('sharedAddDevice')}
+        onBack={() => navigate('/settings/devices')}
+      />
 
-export default DevicePage;
+      <form onSubmit={handleSubmit} class="mt-6 space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('sharedName')} *
+            </label>
+            <input
+              type="text"
+              value={device().name}
+              onInput={(e) => updateField('name', e.target.value)}
+              required
+              class="input"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('deviceIdentifier')} *
+            </label>
+            <input
+              type="text"
+              value={device().uniqueId}
+              onInput={(e) => updateField('uniqueId', e.target.value)}
+              required
+              disabled={!!params.id}
+              class="input"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('deviceCategory')}
+            </label>
+            <select
+              value={device().category || 'default'}
+              onChange={(e) => updateField('category', e.target.value)}
+              class="input"
+            >
+              {deviceCategories.map((cat) => (
+                <option value={cat}>
+                  {t(`category${cat.charAt(0).toUpperCase() + cat.slice(1)}`)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('sharedPhone')}
+            </label>
+            <input
+              type="tel"
+              value={device().phone || ''}
+              onInput={(e) => updateField('phone', e.target.value)}
+              class="input"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('deviceModel')}
+            </label>
+            <input
+              type="text"
+              value={device().model || ''}
+              onInput={(e) => updateField('model', e.target.value)}
+              class="input"
+            />
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              {t('deviceContact')}
+            </label>
+            <input
+              type="text"
+              value={device().contact || ''}
+              onInput={(e) => updateField('contact', e.target.value)}
+              class="input"
+            />
+          </div>
+        </div>
+
+        <div class="flex gap-3">
+          <button
+            type="button"
+            onClick={() => navigate('/settings/devices')}
+            class="btn bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            {t('sharedCancel')}
+          </button>
+          <button
+            type="submit"
+            disabled={!device().name || !device().uniqueId || loading()}
+            class="btn btn-primary flex-1"
+          >
+            {loading() ? t('sharedLoading') : t('sharedSave')}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}

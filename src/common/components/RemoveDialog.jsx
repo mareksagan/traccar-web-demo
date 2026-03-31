@@ -1,47 +1,34 @@
-import Button from '@mui/material/Button';
-import { Snackbar } from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
 import { useTranslation } from './LocalizationProvider';
-import { useCatch } from '../../reactHelper';
-import { snackBarDurationLongMs } from '../util/duration';
-import fetchOrThrow from '../util/fetchOrThrow';
 
-const useStyles = makeStyles()((theme) => ({
-  root: {
-    [theme.breakpoints.down('md')]: {
-      bottom: `calc(${theme.dimensions.bottomBarHeight}px + ${theme.spacing(1)})`,
-    },
-  },
-  button: {
-    height: 'auto',
-    marginTop: 0,
-    marginBottom: 0,
-  },
-}));
-
-const RemoveDialog = ({ open, endpoint, itemId, onResult }) => {
-  const { classes } = useStyles();
+export default function RemoveDialog(props) {
   const t = useTranslation();
 
-  const handleRemove = useCatch(async () => {
-    await fetchOrThrow(`/api/${endpoint}/${itemId}`, { method: 'DELETE' });
-    onResult(true);
-  });
+  if (!props.open) return null;
 
   return (
-    <Snackbar
-      className={classes.root}
-      open={open}
-      autoHideDuration={snackBarDurationLongMs}
-      onClose={() => onResult(false)}
-      message={t('sharedRemoveConfirm')}
-      action={
-        <Button size="small" className={classes.button} color="error" onClick={handleRemove}>
-          {t('sharedRemove')}
-        </Button>
-      }
-    />
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+        <h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+          {t('sharedRemoveConfirm')}
+        </h2>
+        <p class="text-gray-600 dark:text-gray-400 mb-6">
+          {t('sharedRemoveConfirmMessage')}
+        </p>
+        <div class="flex justify-end gap-3">
+          <button
+            onClick={props.onCancel}
+            class="btn bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+          >
+            {t('sharedCancel')}
+          </button>
+          <button
+            onClick={props.onConfirm}
+            class="btn bg-red-600 text-white hover:bg-red-700"
+          >
+            {t('sharedRemove')}
+          </button>
+        </div>
+      </div>
+    </div>
   );
-};
-
-export default RemoveDialog;
+}

@@ -1,199 +1,39 @@
-import { useState } from 'react';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
+import { useTranslation } from '../common/components/LocalizationProvider';
+import NavBar from '../common/components/NavBar';
 
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  FormControlLabel,
-  Checkbox,
-  FormGroup,
-  Button,
-  TextField,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { useTranslation, useTranslationKeys } from '../common/components/LocalizationProvider';
-import EditItemView from './components/EditItemView';
-import { prefixString, unprefixString } from '../common/util/stringUtils';
-import SelectField from '../common/components/SelectField';
-import SettingsMenu from './components/SettingsMenu';
-import { useCatch } from '../reactHelper';
-import useSettingsStyles from './common/useSettingsStyles';
-import fetchOrThrow from '../common/util/fetchOrThrow';
-
-const NotificationPage = () => {
-  const { classes } = useSettingsStyles();
+export default function NotificationPage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  const [item, setItem] = createSignal({ type: 'alarm', always: false, attributes: {} });
 
-  const [item, setItem] = useState();
-
-  const alarms = useTranslationKeys((it) => it.startsWith('alarm')).map((it) => ({
-    key: unprefixString('alarm', it),
-    name: t(it),
-  }));
-
-  const testNotificators = useCatch(async () => {
-    await Promise.all(
-      item.notificators.split(/[, ]+/).map(async (notificator) => {
-        await fetchOrThrow(`/api/notifications/test/${notificator}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(item),
-        });
-      }),
-    );
+  createEffect(async () => {
+    if (params.id) {
+      const res = await fetch(`/api/notifications/${params.id}`);
+      if (res.ok) setItem(await res.json());
+    }
   });
 
-  const validate = () =>
-    item &&
-    item.type &&
-    item.notificators &&
-    (!item.notificators?.includes('command') || item.commandId);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const url = params.id ? `/api/notifications/${params.id}` : '/api/notifications';
+    const method = params.id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item()) });
+    navigate('/settings/notifications');
+  };
 
   return (
-    <EditItemView
-      endpoint="notifications"
-      item={item}
-      setItem={setItem}
-      validate={validate}
-      menu={<SettingsMenu />}
-      breadcrumbs={['settingsTitle', 'sharedNotification']}
-    >
-      {item && (
-        <>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedRequired')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <SelectField
-                value={item.type}
-                onChange={(e) => setItem({ ...item, type: e.target.value })}
-                endpoint="/api/notifications/types"
-                keyGetter={(it) => it.type}
-                titleGetter={(it) => t(prefixString('event', it.type))}
-                label={t('sharedType')}
-                helperText={
-                  ['geofenceEnter', 'geofenceExit'].includes(item.type)
-                    ? t('notificationGeofenceLabel')
-                    : null
-                }
-              />
-              {item.type === 'alarm' && (
-                <SelectField
-                  multiple
-                  value={
-                    item.attributes && item.attributes.alarms
-                      ? item.attributes.alarms.split(/[, ]+/)
-                      : []
-                  }
-                  onChange={(e) =>
-                    setItem({
-                      ...item,
-                      attributes: { ...item.attributes, alarms: e.target.value.join() },
-                    })
-                  }
-                  data={alarms}
-                  keyGetter={(it) => it.key}
-                  label={t('sharedAlarms')}
-                />
-              )}
-              <SelectField
-                multiple
-                value={item.notificators ? item.notificators.split(/[, ]+/) : []}
-                onChange={(e) => setItem({ ...item, notificators: e.target.value.join() })}
-                endpoint="/api/notifications/notificators"
-                keyGetter={(it) => it.type}
-                titleGetter={(it) => t(prefixString('notificator', it.type))}
-                label={t('notificationNotificators')}
-              />
-              {item.notificators?.includes('command') && (
-                <SelectField
-                  value={item.commandId}
-                  onChange={(e) => setItem({ ...item, commandId: Number(e.target.value) })}
-                  endpoint="/api/commands"
-                  titleGetter={(it) => it.description}
-                  label={t('sharedSavedCommand')}
-                />
-              )}
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={testNotificators}
-                disabled={!item.notificators}
-              >
-                {t('sharedTestNotificators')}
-              </Button>
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={item.always}
-                      onChange={(e) => setItem({ ...item, always: e.target.checked })}
-                    />
-                  }
-                  label={t('notificationAlways')}
-                />
-              </FormGroup>
-            </AccordionDetails>
-          </Accordion>
-          <Accordion>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedExtra')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <TextField
-                value={item.description || ''}
-                onChange={(e) => setItem({ ...item, description: e.target.value })}
-                label={t('sharedDescription')}
-              />
-              <SelectField
-                value={item.calendarId}
-                onChange={(e) => setItem({ ...item, calendarId: Number(e.target.value) })}
-                endpoint="/api/calendars"
-                label={t('sharedCalendar')}
-              />
-              {['geofenceEnter', 'geofenceExit'].includes(item.type) && (
-                <SelectField
-                  multiple
-                  value={item.attributes?.geofenceIds ? item.attributes.geofenceIds.split(',') : []}
-                  onChange={(e) => {
-                    const geofenceIds = e.target.value.join();
-                    const attributes = { ...item.attributes };
-                    if (geofenceIds) {
-                      attributes.geofenceIds = geofenceIds;
-                    } else {
-                      delete attributes.geofenceIds;
-                    }
-                    setItem({ ...item, attributes });
-                  }}
-                  endpoint="/api/geofences"
-                  keyGetter={(it) => String(it.id)}
-                  label={t('sharedGeofences')}
-                />
-              )}
-              <FormGroup>
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      checked={item.attributes && item.attributes.priority}
-                      onChange={(e) =>
-                        setItem({
-                          ...item,
-                          attributes: { ...item.attributes, priority: e.target.checked },
-                        })
-                      }
-                    />
-                  }
-                  label={t('sharedPriority')}
-                />
-              </FormGroup>
-            </AccordionDetails>
-          </Accordion>
-        </>
-      )}
-    </EditItemView>
+    <div class="max-w-2xl mx-auto">
+      <NavBar title={params.id ? t('sharedNotification') : t('notificationAdd')} onBack={() => navigate('/settings/notifications')} />
+      <form onSubmit={handleSubmit} class="mt-6 space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm space-y-4">
+          <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('sharedType')}</label><select value={item().type} onChange={(e) => setItem(p => ({ ...p, type: e.target.value }))} class="input"><option value="alarm">{t('alarmGeneral')}</option><option value="geofenceEnter">{t('eventGeofenceEnter')}</option><option value="geofenceExit">{t('eventGeofenceExit')}</option><option value="deviceOnline">{t('eventDeviceOnline')}</option><option value="deviceOffline">{t('eventDeviceOffline')}</option></select></div>
+          <div><label class="flex items-center gap-2"><input type="checkbox" checked={item().always} onChange={(e) => setItem(p => ({ ...p, always: e.target.checked }))} /><span class="text-sm">{t('notificationAlways')}</span></label></div>
+        </div>
+        <div class="flex gap-3"><button type="button" onClick={() => navigate('/settings/notifications')} class="btn bg-gray-200 dark:bg-gray-700">{t('sharedCancel')}</button><button type="submit" class="btn btn-primary flex-1">{t('sharedSave')}</button></div>
+      </form>
+    </div>
   );
-};
-
-export default NotificationPage;
+}

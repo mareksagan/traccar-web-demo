@@ -1,208 +1,92 @@
-import { useState, useRef } from 'react';
-import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
-import {
-  Toolbar,
-  IconButton,
-  OutlinedInput,
-  InputAdornment,
-  Popover,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  FormGroup,
-  FormControlLabel,
-  Checkbox,
-  Badge,
-  ListItemButton,
-  ListItemText,
-  Tooltip,
-} from '@mui/material';
-import { makeStyles } from 'tss-react/mui';
-import { useTheme } from '@mui/material/styles';
-import MapIcon from '@mui/icons-material/Map';
-import DnsIcon from '@mui/icons-material/Dns';
-import AddIcon from '@mui/icons-material/Add';
-import TuneIcon from '@mui/icons-material/Tune';
+import { createSignal, Show } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import { useDeviceReadonly } from '../common/util/permissions';
-import DeviceRow from './DeviceRow';
 
-const useStyles = makeStyles()((theme) => ({
-  toolbar: {
-    display: 'flex',
-    gap: theme.spacing(1),
-  },
-  filterPanel: {
-    display: 'flex',
-    flexDirection: 'column',
-    padding: theme.spacing(2),
-    gap: theme.spacing(2),
-    width: theme.dimensions.drawerWidthTablet,
-  },
-}));
-
-const MainToolbar = ({
-  filteredDevices,
-  devicesOpen,
-  setDevicesOpen,
-  keyword,
-  setKeyword,
-  filter,
-  setFilter,
-  filterSort,
-  setFilterSort,
-  filterMap,
-  setFilterMap,
-}) => {
-  const { classes } = useStyles();
-  const theme = useTheme();
+export default function MainToolbar(props) {
   const navigate = useNavigate();
   const t = useTranslation();
-
-  const deviceReadonly = useDeviceReadonly();
-
-  const groups = useSelector((state) => state.groups.items);
-  const devices = useSelector((state) => state.devices.items);
-
-  const toolbarRef = useRef();
-  const inputRef = useRef();
-  const [filterAnchorEl, setFilterAnchorEl] = useState(null);
-  const [devicesAnchorEl, setDevicesAnchorEl] = useState(null);
-
-  const deviceStatusCount = (status) =>
-    Object.values(devices).filter((d) => d.status === status).length;
+  const [showFilter, setShowFilter] = createSignal(false);
 
   return (
-    <Toolbar ref={toolbarRef} className={classes.toolbar}>
-      <IconButton edge="start" onClick={() => setDevicesOpen(!devicesOpen)}>
-        {devicesOpen ? <MapIcon /> : <DnsIcon />}
-      </IconButton>
-      <OutlinedInput
-        ref={inputRef}
-        placeholder={t('sharedSearchDevices')}
-        value={keyword}
-        onChange={(e) => setKeyword(e.target.value)}
-        onFocus={() => setDevicesAnchorEl(toolbarRef.current)}
-        onBlur={() => setDevicesAnchorEl(null)}
-        endAdornment={
-          <InputAdornment position="end">
-            <IconButton size="small" edge="end" onClick={() => setFilterAnchorEl(inputRef.current)}>
-              <Badge
-                color="info"
-                variant="dot"
-                invisible={!filter.statuses.length && !filter.groups.length}
-              >
-                <TuneIcon fontSize="small" />
-              </Badge>
-            </IconButton>
-          </InputAdornment>
-        }
-        size="small"
-        fullWidth
-      />
-      <Popover
-        open={!!devicesAnchorEl && !devicesOpen}
-        anchorEl={devicesAnchorEl}
-        onClose={() => setDevicesAnchorEl(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: Number(theme.spacing(2).slice(0, -2)),
-        }}
-        marginThreshold={0}
-        slotProps={{
-          paper: {
-            style: { width: `calc(${toolbarRef.current?.clientWidth}px - ${theme.spacing(4)})` },
-          },
-        }}
-        elevation={1}
-        disableAutoFocus
-        disableEnforceFocus
-      >
-        {filteredDevices.slice(0, 3).map((_, index) => (
-          <DeviceRow key={filteredDevices[index].id} devices={filteredDevices} index={index} />
-        ))}
-        {filteredDevices.length > 3 && (
-          <ListItemButton alignItems="center" onClick={() => setDevicesOpen(true)}>
-            <ListItemText primary={t('notificationAlways')} style={{ textAlign: 'center' }} />
-          </ListItemButton>
-        )}
-      </Popover>
-      <Popover
-        open={!!filterAnchorEl}
-        anchorEl={filterAnchorEl}
-        onClose={() => setFilterAnchorEl(null)}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-      >
-        <div className={classes.filterPanel}>
-          <FormControl>
-            <InputLabel>{t('deviceStatus')}</InputLabel>
-            <Select
-              label={t('deviceStatus')}
-              value={filter.statuses}
-              onChange={(e) => setFilter({ ...filter, statuses: e.target.value })}
-              multiple
-            >
-              <MenuItem value="online">{`${t('deviceStatusOnline')} (${deviceStatusCount('online')})`}</MenuItem>
-              <MenuItem value="offline">{`${t('deviceStatusOffline')} (${deviceStatusCount('offline')})`}</MenuItem>
-              <MenuItem value="unknown">{`${t('deviceStatusUnknown')} (${deviceStatusCount('unknown')})`}</MenuItem>
-            </Select>
-          </FormControl>
-          <FormControl>
-            <InputLabel>{t('settingsGroups')}</InputLabel>
-            <Select
-              label={t('settingsGroups')}
-              value={filter.groups}
-              onChange={(e) => setFilter({ ...filter, groups: e.target.value })}
-              multiple
-            >
-              {Object.values(groups)
-                .sort((a, b) => a.name.localeCompare(b.name))
-                .map((group) => (
-                  <MenuItem key={group.id} value={group.id}>
-                    {group.name}
-                  </MenuItem>
-                ))}
-            </Select>
-          </FormControl>
-          <FormControl>
-            <InputLabel>{t('sharedSortBy')}</InputLabel>
-            <Select
-              label={t('sharedSortBy')}
-              value={filterSort}
-              onChange={(e) => setFilterSort(e.target.value)}
-              displayEmpty
-            >
-              <MenuItem value="">{'\u00a0'}</MenuItem>
-              <MenuItem value="name">{t('sharedName')}</MenuItem>
-              <MenuItem value="lastUpdate">{t('deviceLastUpdate')}</MenuItem>
-            </Select>
-          </FormControl>
-          <FormGroup>
-            <FormControlLabel
-              control={
-                <Checkbox checked={filterMap} onChange={(e) => setFilterMap(e.target.checked)} />
-              }
-              label={t('sharedFilterMap')}
-            />
-          </FormGroup>
-        </div>
-      </Popover>
-      <IconButton edge="end" onClick={() => navigate('/settings/device')} disabled={deviceReadonly}>
-        <Tooltip
-          open={!deviceReadonly && Object.keys(devices).length === 0}
-          title={t('deviceRegisterFirst')}
-          arrow
+    <div class="p-3 bg-white dark:bg-gray-800 shadow-sm">
+      <div class="flex items-center gap-2">
+        <button
+          onClick={() => props.setDevicesOpen(!props.devicesOpen)}
+          class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 lg:hidden"
         >
-          <AddIcon />
-        </Tooltip>
-      </IconButton>
-    </Toolbar>
+          <span class="material-icons">menu</span>
+        </button>
+        
+        <div class="flex-1 relative">
+          <input
+            type="text"
+            value={props.keyword}
+            onInput={(e) => props.setKeyword(e.target.value)}
+            placeholder={t('sharedSearch')}
+            class="input w-full pr-10"
+          />
+          <span class="absolute right-3 top-1/2 -translate-y-1/2 material-icons text-gray-400">
+            search
+          </span>
+        </div>
+        
+        <button
+          onClick={() => setShowFilter(!showFilter())}
+          class={`p-2 rounded-lg transition-colors ${
+            showFilter() ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600' : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+          }`}
+        >
+          <span class="material-icons">filter_list</span>
+        </button>
+        
+        <button
+          onClick={() => navigate('/settings')}
+          class="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 hidden sm:block"
+        >
+          <span class="material-icons">settings</span>
+        </button>
+      </div>
+      
+      <Show when={showFilter()}>
+        <div class="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 space-y-3">
+          <div>
+            <label class="text-sm text-gray-600 dark:text-gray-400 block mb-1">
+              {t('sharedStatus')}
+            </label>
+            <div class="flex gap-2">
+              {['online', 'offline', 'unknown'].map((status) => (
+                <button
+                  onClick={() => {
+                    const statuses = props.filter.statuses.includes(status)
+                      ? props.filter.statuses.filter((s) => s !== status)
+                      : [...props.filter.statuses, status];
+                    props.setFilter({ ...props.filter, statuses });
+                  }}
+                  class={`px-3 py-1 rounded-full text-sm transition-colors ${
+                    props.filter.statuses.includes(status)
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {t(`deviceStatus${status.charAt(0).toUpperCase() + status.slice(1)}`)}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-600 dark:text-gray-400">
+              {props.filteredDevices?.length || 0} {t('deviceTitle')}
+            </span>
+            <button
+              onClick={() => props.setFilter({ statuses: [], groups: [] })}
+              class="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {t('sharedReset')}
+            </button>
+          </div>
+        </div>
+      </Show>
+    </div>
   );
-};
-
-export default MainToolbar;
+}

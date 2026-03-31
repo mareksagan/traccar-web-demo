@@ -1,201 +1,41 @@
-import { useEffect, useState } from 'react';
-import dayjs from 'dayjs';
-import {
-  Accordion,
-  AccordionSummary,
-  AccordionDetails,
-  Typography,
-  TextField,
-  FormControl,
-  InputLabel,
-  MenuItem,
-  Select,
-} from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { prefixString } from '../common/util/stringUtils';
-import EditItemView from './components/EditItemView';
-import EditAttributesAccordion from './components/EditAttributesAccordion';
-import { useAttributePreference } from '../common/util/preferences';
-import {
-  speedFromKnots,
-  speedToKnots,
-  distanceFromMeters,
-  distanceToMeters,
-} from '../common/util/converter';
+import { createSignal, createEffect } from 'solid-js';
+import { useParams, useNavigate } from '@solidjs/router';
 import { useTranslation } from '../common/components/LocalizationProvider';
-import usePositionAttributes from '../common/attributes/usePositionAttributes';
-import SettingsMenu from './components/SettingsMenu';
-import useSettingsStyles from './common/useSettingsStyles';
+import NavBar from '../common/components/NavBar';
 
-const MaintenancePage = () => {
-  const { classes } = useSettingsStyles();
+export default function MaintenancePage() {
   const t = useTranslation();
+  const navigate = useNavigate();
+  const params = useParams();
+  const [item, setItem] = createSignal({ name: '', type: 'odometer', start: 0, period: 0 });
 
-  const positionAttributes = usePositionAttributes(t);
+  createEffect(async () => {
+    if (params.id) {
+      const res = await fetch(`/api/maintenance/${params.id}`);
+      if (res.ok) setItem(await res.json());
+    }
+  });
 
-  const [item, setItem] = useState();
-  const [labels, setLabels] = useState({ start: '', period: '' });
-
-  const speedUnit = useAttributePreference('speedUnit', 'kn');
-  const distanceUnit = useAttributePreference('distanceUnit', 'km');
-
-  const convertToList = (attributes) => {
-    const otherList = [];
-    Object.keys(attributes).forEach((key) => {
-      const value = attributes[key];
-      if (value.type === 'number' || key.endsWith('Time')) {
-        otherList.push({ key, name: value.name, type: value.type });
-      }
-    });
-    return otherList;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const url = params.id ? `/api/maintenance/${params.id}` : '/api/maintenance';
+    const method = params.id ? 'PUT' : 'POST';
+    await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(item()) });
+    navigate('/settings/maintenances');
   };
-
-  useEffect(() => {
-    const attribute = positionAttributes[item?.type];
-    if (item?.type?.endsWith('Time')) {
-      setLabels({ ...labels, start: null, period: t('sharedDays') });
-    } else if (attribute && attribute.dataType) {
-      switch (attribute.dataType) {
-        case 'speed':
-          setLabels({
-            ...labels,
-            start: t(prefixString('shared', speedUnit)),
-            period: t(prefixString('shared', speedUnit)),
-          });
-          break;
-        case 'distance':
-          setLabels({
-            ...labels,
-            start: t(prefixString('shared', distanceUnit)),
-            period: t(prefixString('shared', distanceUnit)),
-          });
-          break;
-        case 'hours':
-          setLabels({ ...labels, start: t('sharedHours'), period: t('sharedHours') });
-          break;
-        default:
-          setLabels({ ...labels, start: null, period: null });
-          break;
-      }
-    } else {
-      setLabels({ ...labels, start: null, period: null });
-    }
-  }, [item?.type]);
-
-  const rawToValue = (start, value) => {
-    const attribute = positionAttributes[item.type];
-    if (item.type?.endsWith('Time')) {
-      if (start) {
-        return dayjs(value).locale('en').format('YYYY-MM-DD');
-      }
-      return value / 86400000;
-    }
-    if (attribute && attribute.dataType) {
-      switch (attribute.dataType) {
-        case 'speed':
-          return speedFromKnots(value, speedUnit);
-        case 'distance':
-          return distanceFromMeters(value, distanceUnit);
-        case 'hours':
-          return value / 3600000;
-        default:
-          return value;
-      }
-    }
-    return value;
-  };
-
-  const valueToRaw = (start, value) => {
-    const attribute = positionAttributes[item.type];
-    if (item.type?.endsWith('Time')) {
-      if (start) {
-        return dayjs(value, 'YYYY-MM-DD').valueOf();
-      }
-      return value * 86400000;
-    }
-    if (attribute && attribute.dataType) {
-      switch (attribute.dataType) {
-        case 'speed':
-          return speedToKnots(value, speedUnit);
-        case 'distance':
-          return distanceToMeters(value, distanceUnit);
-        case 'hours':
-          return value * 3600000;
-        default:
-          return value;
-      }
-    }
-    return value;
-  };
-
-  const validate = () => item && item.name && item.type && item.start && item.period;
 
   return (
-    <EditItemView
-      endpoint="maintenance"
-      item={item}
-      setItem={setItem}
-      validate={validate}
-      menu={<SettingsMenu />}
-      breadcrumbs={['settingsTitle', 'sharedMaintenance']}
-    >
-      {item && (
-        <>
-          <Accordion defaultExpanded>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography variant="subtitle1">{t('sharedRequired')}</Typography>
-            </AccordionSummary>
-            <AccordionDetails className={classes.details}>
-              <TextField
-                value={item.name || ''}
-                onChange={(e) => setItem({ ...item, name: e.target.value })}
-                label={t('sharedName')}
-              />
-              <FormControl>
-                <InputLabel>{t('sharedType')}</InputLabel>
-                <Select
-                  label={t('sharedType')}
-                  value={item.type || ''}
-                  onChange={(e) => setItem({ ...item, type: e.target.value, start: 0, period: 0 })}
-                >
-                  {convertToList(positionAttributes).map(({ key, name }) => (
-                    <MenuItem key={key} value={key}>
-                      {name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <TextField
-                type={item.type?.endsWith('Time') ? 'date' : 'number'}
-                value={rawToValue(true, item.start) || ''}
-                onChange={(e) => setItem({ ...item, start: valueToRaw(true, e.target.value) })}
-                label={
-                  labels.start
-                    ? `${t('maintenanceStart')} (${labels.start})`
-                    : t('maintenanceStart')
-                }
-              />
-              <TextField
-                type="number"
-                value={rawToValue(false, item.period) || ''}
-                onChange={(e) => setItem({ ...item, period: valueToRaw(false, e.target.value) })}
-                label={
-                  labels.period
-                    ? `${t('maintenancePeriod')} (${labels.period})`
-                    : t('maintenancePeriod')
-                }
-              />
-            </AccordionDetails>
-          </Accordion>
-          <EditAttributesAccordion
-            attributes={item.attributes}
-            setAttributes={(attributes) => setItem({ ...item, attributes })}
-            definitions={{}}
-          />
-        </>
-      )}
-    </EditItemView>
+    <div class="max-w-2xl mx-auto">
+      <NavBar title={params.id ? t('sharedMaintenance') : t('maintenanceAdd')} onBack={() => navigate('/settings/maintenances')} />
+      <form onSubmit={handleSubmit} class="mt-6 space-y-4">
+        <div class="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-sm space-y-4">
+          <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('sharedName')} *</label><input type="text" value={item().name} onInput={(e) => setItem(p => ({ ...p, name: e.target.value }))} required class="input" /></div>
+          <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('maintenanceType')}</label><select value={item().type} onChange={(e) => setItem(p => ({ ...p, type: e.target.value }))} class="input"><option value="odometer">{t('maintenanceOdometer')}</option><option value="hours">{t('maintenanceHours')}</option></select></div>
+          <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('maintenanceStart')}</label><input type="number" value={item().start} onInput={(e) => setItem(p => ({ ...p, start: parseFloat(e.target.value) }))} class="input" /></div>
+          <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{t('maintenancePeriod')}</label><input type="number" value={item().period} onInput={(e) => setItem(p => ({ ...p, period: parseFloat(e.target.value) }))} class="input" /></div>
+        </div>
+        <div class="flex gap-3"><button type="button" onClick={() => navigate('/settings/maintenances')} class="btn bg-gray-200 dark:bg-gray-700">{t('sharedCancel')}</button><button type="submit" class="btn btn-primary flex-1">{t('sharedSave')}</button></div>
+      </form>
+    </div>
   );
-};
-
-export default MaintenancePage;
+}

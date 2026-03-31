@@ -1,4 +1,4 @@
-export default {
+export const dimensions = {
   sidebarWidth: '28%',
   sidebarWidthTablet: '52px',
   drawerWidthDesktop: '360px',
@@ -13,3 +13,5 @@ export default {
   cardContentMaxHeight: '40vh',
   qrCodeSize: 192,
 };
+
+export default dimensions;
