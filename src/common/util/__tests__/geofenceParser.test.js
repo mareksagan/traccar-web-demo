@@ -15,8 +15,8 @@ describe('geofenceParser', () => {
       expect(result[0].type).toBe('Polygon');
       expect(result[0].coordinates[0]).toHaveLength(5); // 4 points + closing point
       
-      // Check first coordinate [lon, lat]
-      expect(result[0].coordinates[0][0]).toEqual([47.0160, 28.8560]);
+      // Traccar POLYGON uses (lat lon) order, so [47.0160, 28.8560] becomes [28.856, 47.016] in GeoJSON [lon, lat]
+      expect(result[0].coordinates[0][0]).toEqual([28.856, 47.016]);
     });
 
     it('should parse a simple CIRCLE', () => {
@@ -170,10 +170,11 @@ describe('geofenceParser', () => {
       const bounds = getGeofenceBounds(item);
       
       expect(bounds).toBeTruthy();
-      expect(bounds[0][0]).toBeCloseTo(47.0060, 3); // minLon
-      expect(bounds[1][0]).toBeCloseTo(47.0160, 3); // maxLon
-      expect(bounds[0][1]).toBeCloseTo(28.8560, 3); // minLat
-      expect(bounds[1][1]).toBeCloseTo(28.8710, 3); // maxLat
+      // Traccar POLYGON uses (lat lon) order, so coordinates are swapped for GeoJSON [lon, lat]
+      expect(bounds[0][0]).toBeCloseTo(28.8560, 3); // minLon (was lat)
+      expect(bounds[1][0]).toBeCloseTo(28.8710, 3); // maxLon (was lat)
+      expect(bounds[0][1]).toBeCloseTo(47.0060, 3); // minLat (was lon)
+      expect(bounds[1][1]).toBeCloseTo(47.0160, 3); // maxLat (was lon)
     });
 
     it('should return null for empty area', () => {

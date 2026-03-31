@@ -4,12 +4,22 @@ import { devices, session } from '../stores';
 import { formatTime, formatSpeed, formatCoordinate } from '../common/util/formatter';
 import MapView from '../map/core/MapView';
 import MapRoute from '../map/MapRoute';
+import dayjs from 'dayjs';
+
+// Get today's date range for default values
+const getTodayRange = () => {
+  const now = dayjs();
+  const startOfDay = now.startOf('day').format('YYYY-MM-DDTHH:mm');
+  const endOfDay = now.endOf('day').format('YYYY-MM-DDTHH:mm');
+  return { start: startOfDay, end: endOfDay };
+};
 
 export default function RouteReportPage() {
   const t = useTranslation();
+  const todayRange = getTodayRange();
   const [deviceId, setDeviceId] = createSignal('');
-  const [from, setFrom] = createSignal('');
-  const [to, setTo] = createSignal('');
+  const [from, setFrom] = createSignal(todayRange.start);
+  const [to, setTo] = createSignal(todayRange.end);
   const [positions, setPositions] = createSignal([]);
   const [loading, setLoading] = createSignal(false);
   const [map, setMap] = createSignal(null);

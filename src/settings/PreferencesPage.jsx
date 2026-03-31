@@ -27,8 +27,8 @@ export default function PreferencesPage() {
   ];
 
   const mapStyles = [
-    { value: 'osm', label: 'OpenStreetMap' },
-    { value: 'satellite', label: 'Satellite' },
+    { value: 'osm', label: t('mapOsm') },
+    { value: 'satellite', label: t('mapSatellite') },
   ];
 
   return (
@@ -71,7 +71,7 @@ export default function PreferencesPage() {
               >
                 <option value="local">{t('timezoneLocal')}</option>
                 <option value="device">{t('timezoneDevice')}</option>
-                <option value="utc">UTC</option>
+                <option value="utc">{t('timezoneUtc')}</option>
               </select>
             </div>
           </div>

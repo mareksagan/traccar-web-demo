@@ -130,9 +130,9 @@ export default function LoginPage() {
         </div>
 
         <div class="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg text-sm">
-          <strong class="block mb-2">Demo Credentials</strong>
-          Email: admin@admin.com<br />
-          Password: admin
+          <strong class="block mb-2">{t('loginDemo')}</strong>
+          {t('userEmail')}: admin@admin.com<br />
+          {t('userPassword')}: admin
         </div>
 
         {!openIdForced() && (
