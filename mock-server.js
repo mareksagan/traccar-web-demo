@@ -1549,7 +1549,7 @@ setInterval(() => {
 
 const PORT = process.env.PORT || 8082;
 server.listen(PORT, () => {
-  console.log(`🚀 Traccar Mock Server running on port ${PORT}`);
+  console.log(`Traccar Mock Server running on port ${PORT}`);
   console.log('');
   console.log('Demo credentials:');
   console.log('  Email: admin@example.com');
