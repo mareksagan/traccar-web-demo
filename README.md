@@ -12,6 +12,10 @@ An (almost) fully functional mock backend for Traccar Web that simulates all API
 - ✅ Statistics and audit logs
 - ✅ Command sending simulation
 
+## Video
+
+[Watch the video](https://raw.githubusercontent.com/mareksagan/traccar-web-demo/refs/heads/demo/demo/TraccarWebDemo.mp4)
+
 ## Quick Start
 
 ### Option 1: Run Frontend + Mock Server Together
